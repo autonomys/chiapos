@@ -169,6 +169,20 @@ target_link_libraries(RunTests
     Catch2::Catch2
 )
 
+add_executable(SubspaceTest
+    tests/test-main.cpp
+    tests/subspace_test.cpp
+    src/chacha8.c
+    ${BLAKE3_SRC}
+)
+
+target_link_libraries(SubspaceTest
+  PRIVATE
+    fse
+    Threads::Threads
+    Catch2::Catch2
+)
+
 find_package(Threads REQUIRED)
 
 add_library(uint128 STATIC uint128_t/uint128_t.cpp)
@@ -177,6 +191,7 @@ target_include_directories(uint128 PUBLIC uint128_t)
 target_compile_features(fse PUBLIC cxx_std_17)
 target_compile_features(chiapos PUBLIC cxx_std_17)
 target_compile_features(RunTests PUBLIC cxx_std_17)
+target_compile_features(SubspaceTest PUBLIC cxx_std_17)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_link_libraries(chiapos PRIVATE fse Threads::Threads)
@@ -191,11 +206,14 @@ elseif (MSVC)
   target_link_libraries(chiapos PRIVATE fse Threads::Threads uint128)
   target_link_libraries(ProofOfSpace fse Threads::Threads uint128)
   target_link_libraries(RunTests PRIVATE uint128)
+  target_link_libraries(SubspaceTest PRIVATE uint128)
 else()
   target_link_libraries(chiapos PRIVATE fse stdc++fs Threads::Threads)
   target_link_libraries(ProofOfSpace fse stdc++fs Threads::Threads)
   target_link_libraries(RunTests PRIVATE stdc++fs)
+  target_link_libraries(SubspaceTest PRIVATE stdc++fs)
 endif()
 
 enable_testing()
 add_test(NAME RunTests COMMAND RunTests)
+add_test(NAME SubspaceTest COMMAND SubspaceTest)
