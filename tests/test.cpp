@@ -619,7 +619,7 @@ void TestProofOfSpace(
         picosha2::hash256(hash_input.begin(), hash_input.end(), hash.begin(), hash.end());
         vector<LargeBits> qualities = prover.GetQualitiesForChallenge(hash.data());
         Verifier verifier = Verifier();
-            
+
         for (uint32_t index = 0; index < qualities.size(); index++) {
             LargeBits proof = prover.GetFullProof(hash.data(), index);
             proof.ToBytes(proof_data);
@@ -770,33 +770,6 @@ TEST_CASE("Sort on disk")
         REQUIRE(Util::MemCmpBits(left, right, 3, 0) < 0);
     }
 
-    SECTION("Quicksort")
-    {
-        uint32_t const iters = 100;
-        vector<string> hashes;
-        uint8_t* hashes_bytes = new uint8_t[iters * 16];
-        memset(hashes_bytes, 0, iters * 16);
-
-        srand(0);
-        for (uint32_t i = 0; i < iters; i++) {
-            // reverting to rand()
-            string to_insert = std::to_string(rand());
-            while (to_insert.length() < 16) {
-                to_insert += "0";
-            }
-            hashes.push_back(to_insert);
-            memcpy(hashes_bytes + i * 16, to_insert.data(), to_insert.length());
-        }
-        sort(hashes.begin(), hashes.end());
-        QuickSort::Sort(hashes_bytes, 16, iters, 0);
-
-        for (uint32_t i = 0; i < iters; i++) {
-            std::string str(reinterpret_cast<char*>(hashes_bytes) + i * 16, 16);
-            REQUIRE(str.compare(hashes[i]) == 0);
-        }
-        delete[] hashes_bytes;
-    }
-
     SECTION("File disk")
     {
         FileDisk d = FileDisk("test_file.bin");
@@ -808,34 +781,6 @@ TEST_CASE("Sort on disk")
 
         REQUIRE(memcmp(buf, read_buf, 5) == 0);
         remove("test_file.bin");
-    }
-
-    SECTION("Lazy Sort Manager QS")
-    {
-        uint32_t iters = 250000;
-        uint32_t const size = 32;
-        vector<Bits> input;
-        const uint32_t memory_len = 1000000;
-        SortManager manager(memory_len, 16, 4, size, ".", "test-files", 0, 1);
-        int total_written_1 = 0;
-        for (uint32_t i = 0; i < iters; i++) {
-            vector<unsigned char> hash_input = intToBytes(i, 4);
-            vector<unsigned char> hash(picosha2::k_digest_size);
-            picosha2::hash256(hash_input.begin(), hash_input.end(), hash.begin(), hash.end());
-            total_written_1 += size;
-            Bits to_write = Bits(hash.data(), size, size * 8);
-            input.emplace_back(to_write);
-            manager.AddToCache(to_write);
-        }
-        manager.FlushCache();
-        uint8_t buf[size];
-        sort(input.begin(), input.end());
-        uint8_t* buf3;
-        for (uint32_t i = 0; i < iters; i++) {
-            buf3 = manager.ReadEntry(i * size);
-            input[i].ToBytes(buf);
-            REQUIRE(memcmp(buf, buf3, size) == 0);
-        }
     }
 
     SECTION("Lazy Sort Manager uniform sort")

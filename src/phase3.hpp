@@ -206,8 +206,7 @@ Phase3Results RunPhase3(
             tmp_dirname,
             filename + ".p3.t" + std::to_string(table_index + 1),
             0,
-            0,
-            strategy_t::quicksort_last);
+            0);
 
         bool should_read_entry = true;
         std::vector<uint64_t> left_new_pos(kCachedPositionsSize);
@@ -391,8 +390,7 @@ Phase3Results RunPhase3(
             tmp_dirname,
             filename + ".p3s.t" + std::to_string(table_index + 1),
             0,
-            0,
-            strategy_t::quicksort_last);
+            0);
 
         std::vector<uint8_t> park_deltas;
         std::vector<uint64_t> park_stubs;
