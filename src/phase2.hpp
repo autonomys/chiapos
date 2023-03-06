@@ -44,9 +44,6 @@ Phase2Results RunPhase2(
     std::vector<FileDisk> &tmp_1_disks,
     std::vector<uint64_t> table_sizes,
     uint8_t const k,
-    const uint8_t *id,
-    const std::string &tmp_dirname,
-    const std::string &filename,
     uint64_t memory_size,
     uint32_t const num_buckets,
     uint32_t const log_num_buckets,
@@ -160,8 +157,6 @@ Phase2Results RunPhase2(
             num_buckets,
             log_num_buckets,
             new_entry_size,
-            tmp_dirname,
-            filename + ".p2.t" + std::to_string(table_index),
             uint32_t(k),
             0);
 

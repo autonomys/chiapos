@@ -122,8 +122,6 @@ Phase3Results RunPhase3(
     FileDisk &tmp2_disk /*filename*/,
     Phase2Results res2,
     const uint8_t *id,
-    const std::string &tmp_dirname,
-    const std::string &filename,
     uint32_t header_size,
     uint64_t memory_size,
     uint32_t num_buckets,
@@ -203,8 +201,6 @@ Phase3Results RunPhase3(
             num_buckets,
             log_num_buckets,
             right_entry_size_bytes,
-            tmp_dirname,
-            filename + ".p3.t" + std::to_string(table_index + 1),
             0,
             0);
 
@@ -387,8 +383,6 @@ Phase3Results RunPhase3(
             num_buckets,
             log_num_buckets,
             new_pos_entry_size_bytes,
-            tmp_dirname,
-            filename + ".p3s.t" + std::to_string(table_index + 1),
             0,
             0);
 
