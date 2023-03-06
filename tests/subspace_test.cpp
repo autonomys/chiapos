@@ -122,7 +122,7 @@ void PlotAndTestProofOfSpace(
 
 TEST_CASE("Plotting")
 {
-    PlotAndTestProofOfSpace("cpp-test-plot.dat", 100, 18, plot_id_1, 11, 95, 4000, 2);
+    PlotAndTestProofOfSpace("cpp-test-plot.dat", 100, 17, plot_id_1, 11, 93, 2000, 1);
 }
 
 

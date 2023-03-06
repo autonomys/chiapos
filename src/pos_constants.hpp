@@ -34,7 +34,7 @@ const uint32_t kReadMinusWrite = 1U << kOffsetSize;
 const uint32_t kCachedPositionsSize = kReadMinusWrite * 4;
 
 // Must be set high enough to prevent attacks of fast plotting
-const uint32_t kMinPlotSize = 18;
+const uint32_t kMinPlotSize = 17;
 
 // Set to 50 since k + kExtraBits + k*4 must not exceed 256 (BLAKE3 output size)
 const uint32_t kMaxPlotSize = 50;
