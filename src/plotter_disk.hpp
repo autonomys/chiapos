@@ -56,7 +56,6 @@ public:
     // and their total size will be larger than the final plot file. Temp files are deleted at the
     // end of the process.
     void CreatePlotDisk(
-        std::string tmp_dirname,
         std::string tmp2_dirname,
         std::string final_dirname,
         std::string filename,
@@ -154,8 +153,7 @@ public:
 #endif /* defined(_WIN32) || defined(__x86_64__) */
 
         std::cout << std::endl
-                  << "Starting plotting progress into temporary dirs: " << tmp_dirname << " and "
-                  << tmp2_dirname << std::endl;
+                  << "Starting plotting progress into temporary dir: " << tmp2_dirname << std::endl;
         std::cout << "ID: " << Util::HexStr(id, id_len) << std::endl;
         std::cout << "Plot size is: " << static_cast<int>(k) << std::endl;
         std::cout << "Buffer size is: " << buf_megabytes << "MiB" << std::endl;
@@ -165,24 +163,9 @@ public:
                   << std::endl;
         std::cout << "Process ID is: " << ::getpid() << std::endl;
 
-        // Cross platform way to concatenate paths, gulrak library.
-        std::vector<fs::path> tmp_1_filenames = std::vector<fs::path>();
-
-        // The table0 file will be used for sort on disk spare. tables 1-7 are stored in their own
-        // file.
-        tmp_1_filenames.push_back(fs::path(tmp_dirname) / fs::path(filename + ".sort.tmp"));
-        for (size_t i = 1; i <= 7; i++) {
-            tmp_1_filenames.push_back(
-                fs::path(tmp_dirname) / fs::path(filename + ".table" + std::to_string(i) + ".tmp"));
-        }
         fs::path tmp_2_filename = fs::path(tmp2_dirname) / fs::path(filename + ".2.tmp");
         fs::path final_2_filename = fs::path(final_dirname) / fs::path(filename + ".2.tmp");
         fs::path final_filename = fs::path(final_dirname) / fs::path(filename);
-
-        // Check if the paths exist
-        if (!fs::exists(tmp_dirname)) {
-            throw InvalidValueException("Temp directory " + tmp_dirname + " does not exist");
-        }
 
         if (!fs::exists(tmp2_dirname)) {
             throw InvalidValueException("Temp2 directory " + tmp2_dirname + " does not exist");
@@ -191,30 +174,35 @@ public:
         if (!fs::exists(final_dirname)) {
             throw InvalidValueException("Final directory " + final_dirname + " does not exist");
         }
-        for (fs::path& p : tmp_1_filenames) {
-            fs::remove(p);
-        }
         fs::remove(tmp_2_filename);
         fs::remove(final_filename);
 
         {
             // Scope for FileDisk
-            std::vector<FileDisk> tmp_1_disks;
-            for (auto const& fname : tmp_1_filenames)
-                tmp_1_disks.emplace_back(fname);
+            std::vector<std::vector<uint8_t>> tmp_1_vectors;
+            // The table0 file will be used for sort on disk spare. tables 1-7 are stored in their
+            // own vector.
+            tmp_1_vectors.emplace_back();
+            for (size_t i = 1; i <= 7; i++) {
+                tmp_1_vectors.emplace_back();
+            }
+            // TODO: Would be nice to preallocate
+            // for (auto const& vec : tmp_1_vectors) {
+            //     vec.reserve(?);
+            // }
 
             FileDisk tmp2_disk(tmp_2_filename);
 
             assert(id_len == kIdLen);
 
             std::cout << std::endl
-                      << "Starting phase 1/4: Forward Propagation into tmp files... "
+                      << "Starting phase 1/4: Forward Propagation... "
                       << Timer::GetNow();
 
             Timer p1;
             Timer all_phases;
             std::vector<uint64_t> table_sizes = RunPhase1(
-                tmp_1_disks,
+                tmp_1_vectors,
                 k,
                 id,
                 memory_size,
@@ -228,12 +216,12 @@ public:
             uint64_t finalsize=0;
 
             std::cout << std::endl
-                  << "Starting phase 2/4: Backpropagation into tmp files... "
+                  << "Starting phase 2/4: Backpropagation... "
                   << Timer::GetNow();
 
             Timer p2;
             Phase2Results res2 = RunPhase2(
-                tmp_1_disks,
+                tmp_1_vectors,
                 table_sizes,
                 k,
                 memory_size,
@@ -288,11 +276,6 @@ public:
                       << " GiB" << std::endl;
             all_phases.PrintElapsed("Total time =");
         }
-
-        for (fs::path p : tmp_1_filenames) {
-            fs::remove(p);
-        }
-
         bool bCopied = false;
         bool bRenamed = false;
         Timer copy;

@@ -566,7 +566,7 @@ TEST_CASE("(De)Serialization")
         DiskPlotter plotter = DiskPlotter();
         uint8_t memo[5] = {1, 2, 3, 4, 5};
         plotter.CreatePlotDisk(
-            ".", ".", ".", filename, 18, memo, 5, plot_id_1, 32, 11, 0, 4000, 2);
+            ".", ".", filename, 18, memo, 5, plot_id_1, 32, 11, 0, 4000, 2);
         DiskProver prover1(filename);
         std::vector<uint8_t> vecBytes = prover1.ToBytes();
         DiskProver prover2(vecBytes);
@@ -657,7 +657,7 @@ void PlotAndTestProofOfSpace(
     DiskPlotter plotter = DiskPlotter();
     uint8_t memo[5] = {1, 2, 3, 4, 5};
     plotter.CreatePlotDisk(
-        ".", ".", ".", filename, k, memo, 5, plot_id, 32, buffer, 0, stripe_size, num_threads);
+        ".", ".", filename, k, memo, 5, plot_id, 32, buffer, 0, stripe_size, num_threads);
     TestProofOfSpace(filename, iterations, k, plot_id, num_proofs);
     REQUIRE(remove(filename.c_str()) == 0);
 }
@@ -697,7 +697,7 @@ TEST_CASE("Invalid plot")
             DiskPlotter plotter = DiskPlotter();
             uint8_t memo[5] = {1, 2, 3, 4, 5};
             uint8_t k = 20;
-            plotter.CreatePlotDisk(".", ".", ".", filename, k, memo, 5, plot_id_1, 32, 200, 32, 8192, 2);
+            plotter.CreatePlotDisk(".", ".", filename, k, memo, 5, plot_id_1, 32, 200, 32, 8192, 2);
             DiskProver prover(filename);
             uint8_t* proof_data = new uint8_t[8 * k];
             uint8_t challenge[32];
@@ -966,56 +966,19 @@ namespace {
 
 constexpr int num_test_entries = 2000000;
 
-void write_disk_file(FileDisk& df)
+void write_disk_file(std::vector<uint8_t>& df)
 {
     std::uint32_t val = 0;
     for (int i = 0; i < num_test_entries; ++i) {
-        df.Write(i * 4, reinterpret_cast<std::uint8_t const*>(&val), 4);
+        auto* p = reinterpret_cast<std::uint8_t const*>(&val);
+        df.push_back(*p);
+        df.push_back(*(p + 1));
+        df.push_back(*(p + 2));
+        df.push_back(*(p + 3));
         ++val;
     }
 }
 
-}
-
-TEST_CASE("FileDisk")
-{
-    FileDisk d = FileDisk("test_file.bin");
-    write_disk_file(d);
-
-    std::uint32_t val = 0;
-    for (uint32_t i = 0; i < num_test_entries; ++i) {
-        d.Read(i * 4, reinterpret_cast<std::uint8_t*>(&val), 4);
-        REQUIRE(i == val);
-    }
-
-    for (uint32_t i = num_test_entries - 1; i > 0; --i) {
-        d.Read(i * 4, reinterpret_cast<std::uint8_t*>(&val), 4);
-        CHECK(i == val);
-    }
-
-    remove("test_file.bin");
-}
-
-TEST_CASE("BufferedDisk")
-{
-    FileDisk d = FileDisk("test_file.bin");
-    write_disk_file(d);
-
-    BufferedDisk bd(&d, num_test_entries * 4);
-
-    for (uint32_t i = 0; i < num_test_entries; ++i) {
-        auto const val = *reinterpret_cast<std::uint32_t const*>(bd.Read(i * 4, 4));
-        CHECK(i == val);
-    }
-
-    // don't go all the way down to 0, every backwards read cursor movement will
-    // print a warning
-    for (uint32_t i = num_test_entries - 1; i > num_test_entries / 2 + 200; --i) {
-        auto const val = *reinterpret_cast<std::uint32_t const*>(bd.Read(i * 4, 4));
-        CHECK(i == val);
-    }
-
-    remove("test_file.bin");
 }
 
 TEST_CASE("DiskProver")
@@ -1026,7 +989,7 @@ TEST_CASE("DiskProver")
         DiskPlotter plotter = DiskPlotter();
         std::vector<uint8_t> memo{1, 2, 3};
         plotter.CreatePlotDisk(
-            ".", ".", ".", filename, 18, memo.data(),
+            ".", ".", filename, 18, memo.data(),
             memo.size(), plot_id_1, 32, 11, 0,
             4000, 2);
         DiskProver prover1(filename);
@@ -1052,7 +1015,7 @@ TEST_CASE("DiskProver")
 
 TEST_CASE("FilteredDisk")
 {
-    FileDisk d = FileDisk("test_file.bin");
+    auto d = std::vector<uint8_t>();
     write_disk_file(d);
 
     SECTION("filter even")

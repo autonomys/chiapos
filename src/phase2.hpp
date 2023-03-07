@@ -41,7 +41,7 @@ struct Phase2Results
 // to final values in f7, to minimize disk usage. A sort on disk is applied to each table,
 // so that they are sorted by position.
 Phase2Results RunPhase2(
-    std::vector<FileDisk> &tmp_1_disks,
+    std::vector<std::vector<uint8_t>> &tmp_1_vectors,
     std::vector<uint64_t> table_sizes,
     uint8_t const k,
     uint64_t memory_size,
@@ -103,7 +103,7 @@ Phase2Results RunPhase2(
         int64_t const table_size = table_sizes[table_index];
         int16_t const entry_size = cdiv(k + kOffsetSize + (table_index == 7 ? k : 0), 8);
 
-        BufferedDisk disk(&tmp_1_disks[table_index], table_size * entry_size);
+        auto* table = tmp_1_vectors[table_index].data();
 
         // read_index is the number of entries we've processed so far (in the
         // current table) i.e. the index to the current entry. This is not used
@@ -112,7 +112,7 @@ Phase2Results RunPhase2(
         int64_t read_cursor = 0;
         for (int64_t read_index = 0; read_index < table_size; ++read_index, read_cursor += entry_size)
         {
-            uint8_t const* entry = disk.Read(read_cursor, entry_size);
+            uint8_t const* entry = &table[read_cursor];
 
             uint64_t entry_pos_offset = 0;
             if (table_index == 7) {
@@ -168,7 +168,7 @@ Phase2Results RunPhase2(
         int64_t write_counter = 0;
         for (int64_t read_index = 0; read_index < table_size; ++read_index, read_cursor += entry_size)
         {
-            uint8_t const* entry = disk.Read(read_cursor, entry_size);
+            uint8_t const* entry = &table[read_cursor];
 
             uint64_t entry_f7 = 0;
             uint64_t entry_pos_offset;
@@ -202,7 +202,7 @@ Phase2Results RunPhase2(
                 new_entry |= (uint128_t)entry_pos_offset << t7_pos_offset_shift;
                 Util::IntTo16Bytes(bytes, new_entry);
 
-                disk.Write(read_index * entry_size, bytes, entry_size);
+                std::memcpy(&table[read_index * entry_size], bytes, entry_size);
             }
             else {
                 // The new entry is slightly different. Metadata is dropped, to
@@ -222,7 +222,6 @@ Phase2Results RunPhase2(
             sort_timer.PrintElapsed("sort time = ");
 
             // clear disk caches
-            disk.FreeMemory();
             sort_manager->FreeMemory();
 
             output_files[table_index - 2] = std::move(sort_manager);
@@ -238,7 +237,8 @@ Phase2Results RunPhase2(
         // This loop doesn't cover table 1, it's handled below with the
         // FilteredDisk wrapper.
         if (table_index != 7) {
-            tmp_1_disks[table_index].Truncate(0);
+            tmp_1_vectors[table_index].clear();
+            tmp_1_vectors[table_index].shrink_to_fit();
         }
         if (flags & SHOW_PROGRESS) {
             progress(2, 8 - table_index, 6);
@@ -255,13 +255,13 @@ Phase2Results RunPhase2(
     // current_bitfield. Instead of compacting it right now, defer it and read
     // from it as-if it was compacted. This saves one read and one write pass
     new_table_sizes[table_index] = current_bitfield.count(0, table_size);
-    BufferedDisk disk(&tmp_1_disks[table_index], table_size * entry_size);
+    BufferedDisk disk(&tmp_1_vectors[table_index], table_size * entry_size);
 
     std::cout << "table " << table_index << " new size: " << new_table_sizes[table_index] << std::endl;
 
     return {
         FilteredDisk(std::move(disk), std::move(current_bitfield), entry_size)
-        , BufferedDisk(&tmp_1_disks[7], new_table_sizes[7] * new_entry_size)
+        , BufferedDisk(&tmp_1_vectors[7], new_table_sizes[7] * new_entry_size)
         , std::move(output_files)
         , std::move(new_table_sizes)
     };

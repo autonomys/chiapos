@@ -104,7 +104,6 @@ void PlotAndTestProofOfSpace(
     plotter.CreatePlotDisk(
         ".",
         ".",
-        ".",
         filename,
         k,
         memo,

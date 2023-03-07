@@ -97,6 +97,7 @@ void disk_log(fs::path const& filename, op_t const op, uint64_t offset, uint64_t
 }
 #endif
 
+// TODO: Remove
 struct FileDisk {
     explicit FileDisk(const fs::path &filename)
     {
@@ -259,7 +260,7 @@ private:
 
 struct BufferedDisk : Disk
 {
-    BufferedDisk(FileDisk* disk, uint64_t file_size) : disk_(disk), file_size_(file_size) {}
+    BufferedDisk(std::vector<uint8_t>* disk, uint64_t file_size) : disk_(disk), file_size_(file_size) {}
 
     uint8_t const* Read(uint64_t begin, uint64_t length) override
     {
@@ -286,7 +287,7 @@ struct BufferedDisk : Disk
             // greater than 0
             read_buffer_start_ = begin;
             uint64_t const amount_to_read = std::min(file_size_ - read_buffer_start_, read_ahead);
-            disk_->Read(begin, read_buffer_.get(), amount_to_read);
+            std::memcpy(static_cast<uint8_t*>(read_buffer_.get()), disk_->data() + begin, amount_to_read);
             read_buffer_size_ = amount_to_read;
             return read_buffer_.get();
         }
@@ -297,8 +298,9 @@ struct BufferedDisk : Disk
                 << " read-length: " << length
                 << " file-size: " << file_size_
                 << " read-buffer: [" << read_buffer_start_ << ", " << read_buffer_size_ << "]"
-                << " file: " << disk_->GetFileName()
+                << " file: not a file"
                 << '\n';
+            // TODO: This needs to become non-static for multi-threading
             static uint8_t temp[128];
             // all allocations need 7 bytes head-room, since
             // SliceInt64FromBytes() may overrun by 7 bytes
@@ -306,7 +308,7 @@ struct BufferedDisk : Disk
 
             // if we're going backwards, don't wipe out the cache. We assume
             // forward sequential access
-            disk_->Read(begin, temp, length);
+            std::memcpy(temp, disk_->data() + begin, length);
             return temp;
         }
     }
@@ -330,18 +332,18 @@ struct BufferedDisk : Disk
             return;
         }
 
-        disk_->Write(begin, memcache, length);
+        std::memcpy(disk_->data() + begin, memcache, length);
     }
 
     void Truncate(uint64_t const new_size) override
     {
         FlushCache();
-        disk_->Truncate(new_size);
+        disk_->resize(new_size);
         file_size_ = new_size;
         FreeMemory();
     }
 
-    std::string GetFileName() override { return disk_->GetFileName(); }
+    std::string GetFileName() override { return "not a file"; }
 
     void FreeMemory() override
     {
@@ -357,7 +359,7 @@ struct BufferedDisk : Disk
     {
         if (write_buffer_size_ == 0) return;
 
-        disk_->Write(write_buffer_start_, write_buffer_.get(), write_buffer_size_);
+        std::memcpy(disk_->data() + write_buffer_start_, write_buffer_.get(), write_buffer_size_);
         write_buffer_size_ = 0;
     }
 
@@ -379,7 +381,7 @@ private:
         write_buffer_size_ = 0;
     }
 
-    FileDisk* disk_;
+    std::vector<uint8_t>* disk_;
 
     uint64_t file_size_;
 

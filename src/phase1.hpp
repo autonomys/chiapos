@@ -53,9 +53,6 @@ struct SharedData {
     uint64_t matches;
     std::unique_ptr<SortManager> L_sort_manager;
     std::unique_ptr<SortManager> R_sort_manager;
-    uint64_t left_writer_buf_entries;
-    uint64_t left_writer;
-    uint64_t right_writer;
     uint64_t stripe_size;
     uint8_t num_threads;
 };
@@ -72,7 +69,7 @@ struct THREADDATA {
     uint8_t pos_size;
     uint64_t prevtableentries;
     uint32_t compressed_entry_size_bytes;
-    std::vector<FileDisk>* ptmp_1_disks;
+    std::vector<std::vector<uint8_t>>* ptmp_1_vectors;
     SharedData* shared_data;
 };
 
@@ -127,7 +124,7 @@ void* phase1_thread(THREADDATA* ptd)
     uint8_t const pos_size = ptd->pos_size;
     uint64_t const prevtableentries = ptd->prevtableentries;
     uint32_t const compressed_entry_size_bytes = ptd->compressed_entry_size_bytes;
-    std::vector<FileDisk>* ptmp_1_disks = ptd->ptmp_1_disks;
+    std::vector<std::vector<uint8_t>>* ptmp_1_vectors = ptd->ptmp_1_vectors;
     SharedData* shared_data = ptd->shared_data;
 
     // Streams to read and right to tables. We will have handles to two tables. We will
@@ -510,17 +507,21 @@ void* phase1_thread(THREADDATA* ptd)
             }
         } else {
             // Writes out the right table for table 7
-            (*ptmp_1_disks)[table_index + 1].Write(
-                shared_data->right_writer,
+            auto* vec = &(*ptmp_1_vectors)[table_index + 1];
+            vec->insert(
+                vec->end(),
                 right_writer_buf.get(),
-                right_writer_count * right_entry_size_bytes);
+                right_writer_buf.get() + right_writer_count * right_entry_size_bytes);
         }
-        shared_data->right_writer += right_writer_count * right_entry_size_bytes;
         shared_data->right_writer_count += right_writer_count;
 
-        (*ptmp_1_disks)[table_index].Write(
-            shared_data->left_writer, left_writer_buf.get(), left_writer_count * compressed_entry_size_bytes);
-        shared_data->left_writer += left_writer_count * compressed_entry_size_bytes;
+        {
+            auto* vec = &(*ptmp_1_vectors)[table_index];
+            vec->insert(
+                vec->end(),
+                left_writer_buf.get(),
+                left_writer_buf.get() + left_writer_count * compressed_entry_size_bytes);
+        }
         shared_data->left_writer_count += left_writer_count;
 
         shared_data->matches += matches;
@@ -585,7 +586,7 @@ void* F1thread(int const index, uint8_t const k, const uint8_t* id, SharedData* 
 // ChaCha8, and each encryption provides multiple output values. Then, the rest of the
 // f functions are computed, and a sort on disk happens for each table.
 std::vector<uint64_t> RunPhase1(
-    std::vector<FileDisk>& tmp_1_disks,
+    std::vector<std::vector<uint8_t>>& tmp_1_vectors,
     uint8_t const k,
     const uint8_t* const id,
     uint64_t const memory_size,
@@ -672,8 +673,6 @@ std::vector<uint64_t> RunPhase1(
         shared_data.matches = 0;
         shared_data.left_writer_count = 0;
         shared_data.right_writer_count = 0;
-        shared_data.right_writer = 0;
-        shared_data.left_writer = 0;
 
         shared_data.R_sort_manager = std::make_unique<SortManager>(
             memory_size,
@@ -709,7 +708,7 @@ std::vector<uint64_t> RunPhase1(
             td[i].entry_size_bytes = entry_size_bytes;
             td[i].pos_size = pos_size;
             td[i].compressed_entry_size_bytes = compressed_entry_size_bytes;
-            td[i].ptmp_1_disks = &tmp_1_disks;
+            td[i].ptmp_1_vectors = &tmp_1_vectors;
             td[i].shared_data = &shared_data;
 
             threads.emplace_back(phase1_thread, &td[i]);
@@ -734,13 +733,10 @@ std::vector<uint64_t> RunPhase1(
 
         // Truncates the file after the final write position, deleting no longer useful
         // working space
-        tmp_1_disks[table_index].Truncate(shared_data.left_writer);
         shared_data.L_sort_manager.reset();
         if (table_index < 6) {
             shared_data.R_sort_manager->FlushCache();
             shared_data.L_sort_manager = std::move(shared_data.R_sort_manager);
-        } else {
-            tmp_1_disks[table_index + 1].Truncate(shared_data.right_writer);
         }
 
         // Resets variables
