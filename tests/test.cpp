@@ -1006,7 +1006,7 @@ TEST_CASE("FilteredDisk")
 
     SECTION("filter even")
     {
-        BufferedDisk bd(&d, num_test_entries * 4);
+        BufferedDisk bd(&d);
         // filter every other entry (starting with 0)
         bitfield filter(num_test_entries);
         for (int i = 0; i < num_test_entries; ++i) {
@@ -1029,7 +1029,7 @@ TEST_CASE("FilteredDisk")
 
     SECTION("filter odd")
     {
-        BufferedDisk bd(&d, num_test_entries * 4);
+        BufferedDisk bd(&d);
         // filter every other entry (starting with 0)
         bitfield filter(num_test_entries);
         for (int i = 0; i < num_test_entries; ++i) {

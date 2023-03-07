@@ -75,12 +75,6 @@ public:
         return ReadEntry(begin);
     }
 
-    void Write(uint64_t, uint8_t const*, uint64_t) override
-    {
-        assert(false);
-        throw InvalidStateException("Invalid Write() called on SortManager");
-    }
-
     void Truncate(uint64_t new_size) override
     {
         if (new_size != 0) {
@@ -90,11 +84,6 @@ public:
 
         FlushCache();
         FreeMemory();
-    }
-
-    std::string GetFileName() override
-    {
-        return "<SortManager>";
     }
 
     void FreeMemory() override
