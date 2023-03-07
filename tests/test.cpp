@@ -1006,13 +1006,12 @@ TEST_CASE("FilteredDisk")
 
     SECTION("filter even")
     {
-        BufferedDisk bd(&d);
         // filter every other entry (starting with 0)
         bitfield filter(num_test_entries);
         for (int i = 0; i < num_test_entries; ++i) {
             if ((i & 1) == 1) filter.set(i);
         }
-        FilteredDisk fd(std::move(bd), std::move(filter), 4);
+        FilteredDisk fd(&d, std::move(filter), 4);
 
         for (uint32_t i = 0; i < num_test_entries / 2 - 1; ++i) {
             auto const val = *reinterpret_cast<std::uint32_t const*>(fd.Read(i * 4, 4));
@@ -1029,13 +1028,12 @@ TEST_CASE("FilteredDisk")
 
     SECTION("filter odd")
     {
-        BufferedDisk bd(&d);
         // filter every other entry (starting with 0)
         bitfield filter(num_test_entries);
         for (int i = 0; i < num_test_entries; ++i) {
             if ((i & 1) == 0) filter.set(i);
         }
-        FilteredDisk fd(std::move(bd), std::move(filter), 4);
+        FilteredDisk fd(&d, std::move(filter), 4);
 
         for (uint32_t i = 0; i < num_test_entries / 2 - 1; ++i) {
             auto const val = *reinterpret_cast<std::uint32_t const*>(fd.Read(i * 4, 4));

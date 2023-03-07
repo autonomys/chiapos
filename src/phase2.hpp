@@ -254,12 +254,11 @@ Phase2Results RunPhase2(
     // current_bitfield. Instead of compacting it right now, defer it and read
     // from it as-if it was compacted. This saves one read and one write pass
     new_table_sizes[table_index] = current_bitfield.count(0, table_size);
-    BufferedDisk disk(&tmp_1_vectors[table_index]);
 
     std::cout << "table " << table_index << " new size: " << new_table_sizes[table_index] << std::endl;
 
     return {
-        FilteredDisk(std::move(disk), std::move(current_bitfield), entry_size)
+        FilteredDisk(&tmp_1_vectors[table_index], std::move(current_bitfield), entry_size)
         , BufferedDisk(&tmp_1_vectors[7])
         , std::move(output_files)
         , std::move(new_table_sizes)

@@ -62,9 +62,9 @@ private:
 
 struct FilteredDisk : Disk
 {
-    FilteredDisk(BufferedDisk underlying, bitfield filter, int entry_size)
+    FilteredDisk(std::vector<uint8_t>* underlying, bitfield filter, int entry_size)
         : filter_(std::move(filter))
-        , underlying_(std::move(underlying))
+        , underlying_(underlying)
         , entry_size_(entry_size)
     {
         assert(entry_size_ > 0);
@@ -110,25 +110,24 @@ struct FilteredDisk : Disk
         assert(filter_.get(last_idx_));
         assert(last_physical_ == last_idx_ * entry_size_);
         assert(begin == last_logical_);
-        return underlying_.Read(last_physical_, length);
+        return underlying_->data() +last_physical_;
     }
 
     void Truncate(uint64_t new_size) override
     {
-        underlying_.Truncate(new_size);
+        underlying_->resize(new_size);
         if (new_size == 0) filter_.free_memory();
     }
     void FreeMemory() override
     {
         filter_.free_memory();
-        underlying_.FreeMemory();
     }
 
 private:
 
     // only entries whose bit is set should be read
     bitfield filter_;
-    BufferedDisk underlying_;
+    std::vector<uint8_t>* underlying_;
     int entry_size_;
 
     // the "physical" disk offset of the last read
