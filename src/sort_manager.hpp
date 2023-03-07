@@ -21,13 +21,10 @@
 #include <string>
 #include <vector>
 
-#include "chia_filesystem.hpp"
-
 #include "./bits.hpp"
 #include "./calculate_bucket.hpp"
 #include "./disk.hpp"
 #include "./uniformsort.hpp"
-#include "disk.hpp"
 #include "exceptions.hpp"
 
 class SortManager : public Disk {

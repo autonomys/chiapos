@@ -15,7 +15,6 @@
 #ifndef SRC_CPP_PHASE2_HPP_
 #define SRC_CPP_PHASE2_HPP_
 
-#include "disk.hpp"
 #include "entry_sizes.hpp"
 #include "sort_manager.hpp"
 #include "bitfield.hpp"

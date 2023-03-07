@@ -36,8 +36,6 @@
 #include <memory>
 #include <mutex>
 
-#include "chia_filesystem.hpp"
-
 #include "calculate_bucket.hpp"
 #include "entry_sizes.hpp"
 #include "exceptions.hpp"

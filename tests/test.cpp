@@ -20,7 +20,6 @@
 
 #include "../lib/include/picosha2.hpp"
 #include "calculate_bucket.hpp"
-#include "disk.hpp"
 #include "plotter_disk.hpp"
 #include "prover_disk.hpp"
 #include "serialize.hpp"
@@ -768,19 +767,6 @@ TEST_CASE("Sort on disk")
         // Last bit differs
         right[2] = 101;
         REQUIRE(Util::MemCmpBits(left, right, 3, 0) < 0);
-    }
-
-    SECTION("File disk")
-    {
-        FileDisk d = FileDisk("test_file.bin");
-        uint8_t buf[5] = {1, 2, 3, 5, 7};
-        d.Write(250, buf, 5);
-
-        uint8_t read_buf[5];
-        d.Read(250, read_buf, 5);
-
-        REQUIRE(memcmp(buf, read_buf, 5) == 0);
-        remove("test_file.bin");
     }
 
     SECTION("Lazy Sort Manager uniform sort")

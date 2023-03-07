@@ -15,7 +15,6 @@
 #ifndef SRC_CPP_PHASE4_HPP_
 #define SRC_CPP_PHASE4_HPP_
 
-#include "disk.hpp"
 #include "encoding.hpp"
 #include "entry_sizes.hpp"
 #include "phase3.hpp"

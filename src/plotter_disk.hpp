@@ -34,8 +34,6 @@
 #include <vector>
 #include <memory>
 
-#include "chia_filesystem.hpp"
-
 #include "calculate_bucket.hpp"
 #include "encoding.hpp"
 #include "exceptions.hpp"

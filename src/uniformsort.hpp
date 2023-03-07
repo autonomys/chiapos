@@ -15,13 +15,6 @@
 #ifndef SRC_CPP_UNIFORMSORT_HPP_
 #define SRC_CPP_UNIFORMSORT_HPP_
 
-#include <algorithm>
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <vector>
-
-#include "./disk.hpp"
 #include "./util.hpp"
 
 namespace UniformSort {
