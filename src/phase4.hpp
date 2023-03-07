@@ -39,7 +39,7 @@
 // C1 (checkpoint values)
 // C2 (checkpoint values into)
 // C3 (deltas of f7s between C1 checkpoints)
-void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &res,
+void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t> &tmp2_vector, Phase3Results &res,
                const uint8_t flags, const int max_phase4_progress_updates)
 {
     uint32_t P7_park_size = Util::ByteAlign((k + 1) * kEntriesPerPark) / 8;
@@ -97,7 +97,7 @@ void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &
         if (f7_position % kEntriesPerPark == 0 && f7_position > 0) {
             memset(P7_entry_buf, 0, P7_park_size);
             to_write_p7.ToBytes(P7_entry_buf);
-            tmp2_disk.Write(final_file_writer_3, (P7_entry_buf), P7_park_size);
+            write_to_vector_at(tmp2_vector, final_file_writer_3, P7_entry_buf, P7_park_size);
             final_file_writer_3 += P7_park_size;
             to_write_p7 = ParkBits();
         }
@@ -106,7 +106,7 @@ void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &
 
         if (f7_position % kCheckpoint1Interval == 0) {
             entry_y_bits.ToBytes(C1_entry_buf);
-            tmp2_disk.Write(final_file_writer_1, (C1_entry_buf), Util::ByteAlign(k) / 8);
+            write_to_vector_at(tmp2_vector, final_file_writer_1, C1_entry_buf, Util::ByteAlign(k) / 8);
             final_file_writer_1 += Util::ByteAlign(k) / 8;
             if (num_C1_entries > 0) {
                 final_file_writer_2 = begin_byte_C3 + (num_C1_entries - 1) * size_C3;
@@ -119,7 +119,7 @@ void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &
                 // Write the size
                 Util::IntToTwoBytes(C3_entry_buf, num_bytes - 2);
 
-                tmp2_disk.Write(final_file_writer_2, (C3_entry_buf), num_bytes);
+                write_to_vector_at(tmp2_vector, final_file_writer_2, C3_entry_buf, num_bytes);
                 final_file_writer_2 += num_bytes;
             }
             prev_y = entry_y;
@@ -143,7 +143,7 @@ void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &
     memset(P7_entry_buf, 0, P7_park_size);
     to_write_p7.ToBytes(P7_entry_buf);
 
-    tmp2_disk.Write(final_file_writer_3, (P7_entry_buf), P7_park_size);
+    write_to_vector_at(tmp2_vector, final_file_writer_3, P7_entry_buf, P7_park_size);
     final_file_writer_3 += P7_park_size;
 
     if (!deltas_to_write.empty()) {
@@ -154,24 +154,24 @@ void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &
         // Write the size
         Util::IntToTwoBytes(C3_entry_buf, num_bytes);
 
-        tmp2_disk.Write(final_file_writer_2, (C3_entry_buf), size_C3);
+        write_to_vector_at(tmp2_vector, final_file_writer_2, C3_entry_buf, size_C3);
         final_file_writer_2 += size_C3;
         Encoding::ANSFree(kC3R);
     }
 
     Bits(0, Util::ByteAlign(k)).ToBytes(C1_entry_buf);
-    tmp2_disk.Write(final_file_writer_1, (C1_entry_buf), Util::ByteAlign(k) / 8);
+    write_to_vector_at(tmp2_vector, final_file_writer_1, C1_entry_buf, Util::ByteAlign(k) / 8);
     final_file_writer_1 += Util::ByteAlign(k) / 8;
     std::cout << "\tFinished writing C1 and C3 tables" << std::endl;
     std::cout << "\tWriting C2 table" << std::endl;
 
     for (Bits &C2_entry : C2) {
         C2_entry.ToBytes(C1_entry_buf);
-        tmp2_disk.Write(final_file_writer_1, (C1_entry_buf), Util::ByteAlign(k) / 8);
+        write_to_vector_at(tmp2_vector, final_file_writer_1, C1_entry_buf, Util::ByteAlign(k) / 8);
         final_file_writer_1 += Util::ByteAlign(k) / 8;
     }
     Bits(0, Util::ByteAlign(k)).ToBytes(C1_entry_buf);
-    tmp2_disk.Write(final_file_writer_1, (C1_entry_buf), Util::ByteAlign(k) / 8);
+    write_to_vector_at(tmp2_vector, final_file_writer_1, C1_entry_buf, Util::ByteAlign(k) / 8);
     final_file_writer_1 += Util::ByteAlign(k) / 8;
     std::cout << "\tFinished writing C2 table" << std::endl;
 
@@ -185,7 +185,7 @@ void RunPhase4(uint8_t k, uint8_t pos_size, FileDisk &tmp2_disk, Phase3Results &
     // Writes the pointers to the start of the tables, for proving
     for (int i = 8; i <= 10; i++) {
         Util::IntToEightBytes(table_pointer_bytes, res.final_table_begin_pointers[i]);
-        tmp2_disk.Write(final_file_writer_1, table_pointer_bytes, 8);
+        write_to_vector_at(tmp2_vector, final_file_writer_1, table_pointer_bytes, 8);
         final_file_writer_1 += 8;
     }
 

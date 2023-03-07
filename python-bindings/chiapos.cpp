@@ -38,7 +38,6 @@ PYBIND11_MODULE(chiapos, m)
         .def(
             "create_plot_disk",
             [](DiskPlotter &dp,
-               const std::string tmp2_dir,
                const std::string final_dir,
                const std::string filename,
                uint8_t k,
@@ -54,8 +53,7 @@ PYBIND11_MODULE(chiapos, m)
                 std::string id_str(id);
                 const uint8_t *id_ptr = reinterpret_cast<const uint8_t *>(id_str.data());
                 try {
-                    dp.CreatePlotDisk(tmp2_dir,
-                                      final_dir,
+                    dp.CreatePlotDisk(final_dir,
                                       filename,
                                       k,
                                       memo_ptr,

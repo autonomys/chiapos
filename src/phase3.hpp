@@ -35,6 +35,16 @@ struct Phase3Results {
     std::unique_ptr<SortManager> table7_sm;
 };
 
+static uint32_t write_to_vector_at(std::vector<uint8_t> &vector, uint64_t position, const uint8_t* bytes, uint32_t size) {
+    if (vector.size() < position + size) {
+        vector.resize(position + size);
+    }
+
+    std::memcpy(vector.data() + position, bytes, size);
+
+    return size;
+}
+
 // This writes a number of entries into a file, in the final, optimized format. The park
 // contains a checkpoint value (which is a 2k bits line point), as well as EPP (entries per
 // park) entries. These entries are each divided into stub and delta section. The stub bits are
@@ -43,7 +53,7 @@ struct Phase3Results {
 // is: [2k bits of first_line_point]  [EPP-1 stubs] [Deltas size] [EPP-1 deltas]....
 // [first_line_point] ...
 void WriteParkToFile(
-    FileDisk &final_disk,
+    std::vector<uint8_t> &final_disk,
     uint64_t table_start,
     uint64_t park_index,
     uint32_t park_size_bytes,
@@ -102,7 +112,7 @@ void WriteParkToFile(
     }
     memset(index, 0x00, park_size_bytes - (index - park_buffer));
 
-    final_disk.Write(writer, (uint8_t *)park_buffer, park_size_bytes);
+    write_to_vector_at(final_disk, writer, (uint8_t *)park_buffer, park_size_bytes);
 }
 
 // Compresses the plot file tables into the final file. In order to do this, entries must be
@@ -119,7 +129,7 @@ void WriteParkToFile(
 // document for more details on the algorithm.
 Phase3Results RunPhase3(
     uint8_t k,
-    FileDisk &tmp2_disk /*filename*/,
+    std::vector<uint8_t> &tmp2_vector /*filename*/,
     Phase2Results res2,
     const uint8_t *id,
     uint32_t header_size,
@@ -136,7 +146,7 @@ Phase3Results RunPhase3(
 
     uint8_t table_pointer_bytes[8];
     Util::IntToEightBytes(table_pointer_bytes, final_table_begin_pointers[1]);
-    tmp2_disk.Write(header_size - 10 * 8, table_pointer_bytes, 8);
+    write_to_vector_at(tmp2_vector, header_size - 10 * 8, table_pointer_bytes, 8);
 
     uint64_t final_entries_written = 0;
     uint32_t right_entry_size_bytes = 0;
@@ -423,7 +433,7 @@ Phase3Results RunPhase3(
             if (index % kEntriesPerPark == 0) {
                 if (index != 0) {
                     WriteParkToFile(
-                        tmp2_disk,
+                        tmp2_vector,
                         final_table_begin_pointers[table_index],
                         park_index,
                         park_size_bytes,
@@ -470,7 +480,7 @@ Phase3Results RunPhase3(
         if (park_deltas.size() > 0) {
             // Since we don't have a perfect multiple of EPP entries, this writes the last ones
             WriteParkToFile(
-                tmp2_disk,
+                tmp2_vector,
                 final_table_begin_pointers[table_index],
                 park_index,
                 park_size_bytes,
@@ -492,7 +502,7 @@ Phase3Results RunPhase3(
 
         final_table_writer = header_size - 8 * (10 - table_index);
         Util::IntToEightBytes(table_pointer_bytes, final_table_begin_pointers[table_index + 1]);
-        tmp2_disk.Write(final_table_writer, (table_pointer_bytes), 8);
+        write_to_vector_at(tmp2_vector, final_table_writer, table_pointer_bytes, 8);
         final_table_writer += 8;
 
         table_timer.PrintElapsed("Total compress table time:");

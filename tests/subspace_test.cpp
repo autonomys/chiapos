@@ -103,7 +103,6 @@ void PlotAndTestProofOfSpace(
     uint8_t memo[5] = {1, 2, 3, 4, 5};
     plotter.CreatePlotDisk(
         ".",
-        ".",
         filename,
         k,
         memo,

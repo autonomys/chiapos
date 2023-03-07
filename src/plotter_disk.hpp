@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <string>
 #include <vector>
@@ -56,7 +57,6 @@ public:
     // and their total size will be larger than the final plot file. Temp files are deleted at the
     // end of the process.
     void CreatePlotDisk(
-        std::string tmp2_dirname,
         std::string final_dirname,
         std::string filename,
         uint8_t k,
@@ -152,8 +152,7 @@ public:
         }
 #endif /* defined(_WIN32) || defined(__x86_64__) */
 
-        std::cout << std::endl
-                  << "Starting plotting progress into temporary dir: " << tmp2_dirname << std::endl;
+        std::cout << std::endl << "Starting plotting progress" << std::endl;
         std::cout << "ID: " << Util::HexStr(id, id_len) << std::endl;
         std::cout << "Plot size is: " << static_cast<int>(k) << std::endl;
         std::cout << "Buffer size is: " << buf_megabytes << "MiB" << std::endl;
@@ -163,19 +162,11 @@ public:
                   << std::endl;
         std::cout << "Process ID is: " << ::getpid() << std::endl;
 
-        fs::path tmp_2_filename = fs::path(tmp2_dirname) / fs::path(filename + ".2.tmp");
-        fs::path final_2_filename = fs::path(final_dirname) / fs::path(filename + ".2.tmp");
         fs::path final_filename = fs::path(final_dirname) / fs::path(filename);
 
-        if (!fs::exists(tmp2_dirname)) {
-            throw InvalidValueException("Temp2 directory " + tmp2_dirname + " does not exist");
-        }
-
-        if (!fs::exists(final_dirname)) {
-            throw InvalidValueException("Final directory " + final_dirname + " does not exist");
-        }
-        fs::remove(tmp_2_filename);
         fs::remove(final_filename);
+
+        auto tmp2_vector = std::vector<uint8_t>();
 
         {
             // Scope for FileDisk
@@ -190,8 +181,6 @@ public:
             // for (auto const& vec : tmp_1_vectors) {
             //     vec.reserve(?);
             // }
-
-            FileDisk tmp2_disk(tmp_2_filename);
 
             assert(id_len == kIdLen);
 
@@ -231,15 +220,14 @@ public:
             p2.PrintElapsed("Time for phase 2 =");
 
             // Now we open a new file, where the final contents of the plot will be stored.
-            uint32_t header_size = WriteHeader(tmp2_disk, k, id, memo, memo_len);
+            uint32_t header_size = WriteHeader(tmp2_vector, k, id, memo, memo_len);
 
             std::cout << std::endl
-                  << "Starting phase 3/4: Compression from tmp files into " << tmp_2_filename
-                  << " ... " << Timer::GetNow();
+                  << "Starting phase 3/4: Compression... " << Timer::GetNow();
             Timer p3;
             Phase3Results res = RunPhase3(
                 k,
-                tmp2_disk,
+                tmp2_vector,
                 std::move(res2),
                 id,
                 header_size,
@@ -250,10 +238,9 @@ public:
             p3.PrintElapsed("Time for phase 3 =");
 
             std::cout << std::endl
-                  << "Starting phase 4/4: Write Checkpoint tables into " << tmp_2_filename
-                  << " ... " << Timer::GetNow();
+                  << "Starting phase 4/4: Write Checkpoint tables... " << Timer::GetNow();
             Timer p4;
-            RunPhase4(k, k + 1, tmp2_disk, res, phases_flags, 16);
+            RunPhase4(k, k + 1, tmp2_vector, res, phases_flags, 16);
             p4.PrintElapsed("Time for phase 4 =");
             finalsize = res.final_table_begin_pointers[11];
 
@@ -276,75 +263,17 @@ public:
                       << " GiB" << std::endl;
             all_phases.PrintElapsed("Total time =");
         }
-        bool bCopied = false;
-        bool bRenamed = false;
-        Timer copy;
-        do {
-            std::error_code ec;
-            struct stat tmp2_stat, final_stat;
-            int rc;
-            rc = ::stat(reinterpret_cast<const char *>(tmp_2_filename.c_str()), &tmp2_stat);
-            if (rc == 0)
-                rc = ::stat(reinterpret_cast<const char *>(final_filename.parent_path().c_str()), &final_stat);
-            if ((rc == 0 && tmp2_stat.st_dev == final_stat.st_dev) ||
-                tmp_2_filename.parent_path() == final_filename.parent_path()) {
-                fs::rename(tmp_2_filename, final_filename, ec);
-                if (ec.value() != 0) {
-                    std::cout << "Could not rename " << tmp_2_filename << " to " << final_filename
-                              << ". Error " << ec.message() << ". Retrying in five minutes."
-                              << std::endl;
-                } else {
-                    bRenamed = true;
-                    std::cout << "Renamed final file from " << tmp_2_filename << " to "
-                              << final_filename << std::endl;
-                }
-            } else {
-                if (!bCopied) {
-                    fs::copy(
-                        tmp_2_filename, final_2_filename, fs::copy_options::overwrite_existing, ec);
-                    if (ec.value() != 0) {
-                        std::cout << "Could not copy " << tmp_2_filename << " to "
-                                  << final_2_filename << ". Error " << ec.message()
-                                  << ". Retrying in five minutes." << std::endl;
-                    } else {
-                        std::cout << "Copied final file from " << tmp_2_filename << " to "
-                                  << final_2_filename << std::endl;
-                        copy.PrintElapsed("Copy time =");
-                        bCopied = true;
 
-                        bool removed_2 = fs::remove(tmp_2_filename);
-                        std::cout << "Removed temp2 file " << tmp_2_filename << "? " << removed_2
-                                  << std::endl;
-                    }
-                }
-                if (bCopied && (!bRenamed)) {
-                    fs::rename(final_2_filename, final_filename, ec);
-                    if (ec.value() != 0) {
-                        std::cout << "Could not rename " << tmp_2_filename << " to "
-                                  << final_filename << ". Error " << ec.message()
-                                  << ". Retrying in five minutes." << std::endl;
-                    } else {
-                        std::cout << "Renamed final file from " << final_2_filename << " to "
-                                  << final_filename << std::endl;
-                        bRenamed = true;
-                    }
-                }
-            }
-
-            if (!bRenamed) {
-#ifdef _WIN32
-                Sleep(5 * 60000);
-#else
-                sleep(5 * 60);
-#endif
-            }
-        } while (!bRenamed);
+        std::ofstream output_file(final_filename);
+        std::copy(tmp2_vector.begin(), tmp2_vector.end(),
+                  std::ostream_iterator<uint8_t>(output_file));
+        std::cout << "Wrote final file to " << final_filename << std::endl;
     }
 
 private:
     // Writes the plot file header to a file
     uint32_t WriteHeader(
-        FileDisk& plot_Disk,
+        std::vector<uint8_t>& plot_Disk,
         uint8_t k,
         const uint8_t* id,
         const uint8_t* memo,
@@ -360,38 +289,33 @@ private:
 
         std::string header_text = "Proof of Space Plot";
         uint64_t write_pos = 0;
-        plot_Disk.Write(write_pos, (uint8_t*)header_text.data(), header_text.size());
+        plot_Disk.insert(plot_Disk.end(), header_text.begin(), header_text.end());
         write_pos += header_text.size();
-        plot_Disk.Write(write_pos, (id), kIdLen);
-        write_pos += kIdLen;
+
+        write_pos += write_to_vector_at(plot_Disk, write_pos, id, kIdLen);
 
         uint8_t k_buffer[1];
         k_buffer[0] = k;
-        plot_Disk.Write(write_pos, (k_buffer), 1);
-        write_pos += 1;
+        write_pos += write_to_vector_at(plot_Disk, write_pos, k_buffer, 1);
 
         uint8_t size_buffer[2];
         Util::IntToTwoBytes(size_buffer, kFormatDescription.size());
-        plot_Disk.Write(write_pos, (size_buffer), 2);
-        write_pos += 2;
-        plot_Disk.Write(write_pos, (uint8_t*)kFormatDescription.data(), kFormatDescription.size());
-        write_pos += kFormatDescription.size();
+        write_pos += write_to_vector_at(plot_Disk, write_pos, size_buffer, 2);
+        write_pos += write_to_vector_at(
+            plot_Disk, write_pos,
+            (uint8_t*)kFormatDescription.data(),
+            kFormatDescription.size());
 
         Util::IntToTwoBytes(size_buffer, memo_len);
-        plot_Disk.Write(write_pos, (size_buffer), 2);
-        write_pos += 2;
-        plot_Disk.Write(write_pos, (memo), memo_len);
-        write_pos += memo_len;
+        write_pos += write_to_vector_at(plot_Disk, write_pos, size_buffer, 2);
+        write_pos += write_to_vector_at(plot_Disk, write_pos, memo, memo_len);
 
         uint8_t pointers[10 * 8];
         memset(pointers, 0, 10 * 8);
-        plot_Disk.Write(write_pos, (pointers), 10 * 8);
-        write_pos += 10 * 8;
+        write_pos += write_to_vector_at(plot_Disk, write_pos, pointers, 10 * 8);
 
-        uint32_t bytes_written =
-            header_text.size() + kIdLen + 1 + 2 + kFormatDescription.size() + 2 + memo_len + 10 * 8;
-        std::cout << "Wrote: " << bytes_written << std::endl;
-        return bytes_written;
+        std::cout << "Wrote: " << write_pos << std::endl;
+        return write_pos;
     }
 };
 
