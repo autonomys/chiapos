@@ -57,13 +57,6 @@ public:
         uint64_t stripe_size_input = 0,
         uint8_t phases_flags = ENABLE_BITFIELD)
     {
-        // Increases the open file limit, we will open a lot of files.
-#ifndef _WIN32
-        struct rlimit the_limit = {600, 600};
-        if (-1 == setrlimit(RLIMIT_NOFILE, &the_limit)) {
-            std::cout << "setrlimit failed" << std::endl;
-        }
-#endif
         if (k < kMinPlotSize || k > kMaxPlotSize) {
             throw InvalidValueException("Plot size k= " + std::to_string(k) + " is invalid");
         }
@@ -133,6 +126,7 @@ public:
         }
 #endif /* defined(_WIN32) || defined(__x86_64__) */
 
+#ifdef _PRINT_LOGS
         std::cout << std::endl << "Starting plotting progress" << std::endl;
         std::cout << "ID: " << Util::HexStr(id, id_len) << std::endl;
         std::cout << "Plot size is: " << static_cast<int>(k) << std::endl;
@@ -140,6 +134,7 @@ public:
         std::cout << "Using " << num_buckets << " buckets" << std::endl;
         std::cout << "Using 1 thread of stripe size " << stripe_size << std::endl;
         std::cout << "Process ID is: " << ::getpid() << std::endl;
+#endif
 
         auto tmp2_vector = std::vector<uint8_t>();
 
@@ -159,12 +154,14 @@ public:
 
             assert(id_len == kIdLen);
 
+#ifdef _PRINT_LOGS
             std::cout << std::endl
                       << "Starting phase 1/4: Forward Propagation... "
                       << Timer::GetNow();
-
             Timer p1;
             Timer all_phases;
+#endif
+
             std::vector<uint64_t> table_sizes = RunPhase1(
                 tmp_1_vectors,
                 k,
@@ -174,15 +171,19 @@ public:
                 log_num_buckets,
                 stripe_size,
                 phases_flags);
+#ifdef _PRINT_LOGS
             p1.PrintElapsed("Time for phase 1 =");
 
             uint64_t finalsize=0;
+#endif
 
+#ifdef _PRINT_LOGS
             std::cout << std::endl
                   << "Starting phase 2/4: Backpropagation... "
                   << Timer::GetNow();
-
             Timer p2;
+#endif
+
             Phase2Results res2 = RunPhase2(
                 tmp_1_vectors,
                 table_sizes,
@@ -191,14 +192,18 @@ public:
                 num_buckets,
                 log_num_buckets,
                 phases_flags);
+#ifdef _PRINT_LOGS
             p2.PrintElapsed("Time for phase 2 =");
+#endif
 
             // Now we open a new file, where the final contents of the plot will be stored.
             uint32_t header_size = WriteHeader(tmp2_vector, k, id);
 
+#ifdef _PRINT_LOGS
             std::cout << std::endl
                   << "Starting phase 3/4: Compression... " << Timer::GetNow();
             Timer p3;
+#endif
             Phase3Results res = RunPhase3(
                 k,
                 tmp2_vector,
@@ -209,14 +214,20 @@ public:
                 num_buckets,
                 log_num_buckets,
                 phases_flags);
+#ifdef _PRINT_LOGS
             p3.PrintElapsed("Time for phase 3 =");
+#endif
 
+#ifdef _PRINT_LOGS
             std::cout << std::endl
                   << "Starting phase 4/4: Write Checkpoint tables... " << Timer::GetNow();
             Timer p4;
+#endif
             RunPhase4(k, k + 1, tmp2_vector, res, phases_flags, 16);
+#ifdef _PRINT_LOGS
             p4.PrintElapsed("Time for phase 4 =");
             finalsize = res.final_table_begin_pointers[11];
+#endif
 
             // The total number of bytes used for sort is saved to table_sizes[0]. All other
             // elements in table_sizes represent the total number of entries written by the end of
@@ -227,6 +238,7 @@ public:
             for (size_t i = 1; i <= 7; i++) {
                 total_working_space += table_sizes[i] * EntrySizes::GetMaxEntrySize(k, i, false);
             }
+#ifdef _PRINT_LOGS
             std::cout << "Approximate working space used (without final file): "
                       << static_cast<double>(total_working_space) / (1024 * 1024 * 1024) << " GiB"
                       << std::endl;
@@ -236,6 +248,7 @@ public:
                              (1024 * 1024 * 1024)
                       << " GiB" << std::endl;
             all_phases.PrintElapsed("Total time =");
+#endif
         }
 
         return tmp2_vector;
@@ -277,7 +290,9 @@ private:
         memset(pointers, 0, 10 * 8);
         write_pos += write_to_vector_at(plot_Disk, write_pos, pointers, 10 * 8);
 
+#ifdef _PRINT_LOGS
         std::cout << "Wrote: " << write_pos << std::endl;
+#endif
         return write_pos;
     }
 };

@@ -208,11 +208,6 @@ private:
         uint64_t const bucket_entries = b.size() / entry_size_;
         uint64_t const entries_fit_in_memory = this->memory_size_ / entry_size_;
 
-        double const have_ram = entry_size_ * entries_fit_in_memory / (1024.0 * 1024.0 * 1024.0);
-        double const qs_ram = entry_size_ * bucket_entries / (1024.0 * 1024.0 * 1024.0);
-        double const u_ram =
-            Util::RoundSize(bucket_entries) * entry_size_ / (1024.0 * 1024.0 * 1024.0);
-
         if (bucket_entries > entries_fit_in_memory) {
             throw InsufficientMemoryException(
                 "Not enough memory for sort in memory. Need to sort " +
@@ -220,9 +215,16 @@ private:
                 "GiB");
         }
 
+#ifdef _PRINT_LOGS
+        double const have_ram = entry_size_ * entries_fit_in_memory / (1024.0 * 1024.0 * 1024.0);
+        double const qs_ram = entry_size_ * bucket_entries / (1024.0 * 1024.0 * 1024.0);
+        double const u_ram =
+            Util::RoundSize(bucket_entries) * entry_size_ / (1024.0 * 1024.0 * 1024.0);
+
         std::cout << "\tBucket " << bucket_i << " uniform sort. Ram: " << std::fixed
                   << std::setprecision(3) << have_ram << "GiB, u_sort min: " << u_ram
                   << "GiB, qs min: " << qs_ram << "GiB." << std::endl;
+#endif
         UniformSort::SortToMemory(
             b.data(),
             memory_start_.get(),

@@ -81,6 +81,7 @@ inline uint64_t bswap_64(uint64_t x) { return __builtin_bswap64(x); }
 #include <cpuid.h>
 #endif
 
+#ifdef _PRINT_LOGS
 class Timer {
 public:
     Timer()
@@ -141,6 +142,7 @@ private:
 #endif
 
 };
+#endif
 
 namespace Util {
 

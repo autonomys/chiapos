@@ -90,12 +90,16 @@ Phase2Results RunPhase2(
     // note that we don't iterate over table_index=1. That table is special
     // since it contains different data. We'll do an extra scan of table 1 at
     // the end, just to compact it.
+#ifdef _PRINT_LOGS
     double progress_percent[] = {0.43, 0.48, 0.51, 0.55, 0.58, 0.61};
+#endif
     for (int table_index = 7; table_index > 1; --table_index) {
 
+#ifdef _PRINT_LOGS
         std::cout << "Backpropagating on table " << table_index << std::endl;
         std::cout << "Progress update: " << progress_percent[7 - table_index] << std::endl;
         Timer scan_timer;
+#endif
 
         next_bitfield.clear();
 
@@ -134,11 +138,13 @@ Phase2Results RunPhase2(
             next_bitfield.set(entry_pos + entry_offset);
         }
 
+#ifdef _PRINT_LOGS
         std::cout << "scanned table " << table_index << std::endl;
         scan_timer.PrintElapsed("scanned time = ");
 
         std::cout << "sorting table " << table_index << std::endl;
         Timer sort_timer;
+#endif
 
         // read the same table again. This time we'll output it to new files:
         // * add sort_key (just the index of the current entry)
@@ -218,7 +224,9 @@ Phase2Results RunPhase2(
 
         if (table_index != 7) {
             sort_manager->FlushCache();
+#ifdef _PRINT_LOGS
             sort_timer.PrintElapsed("sort time = ");
+#endif
 
             // clear disk caches
             sort_manager->FreeMemory();
@@ -255,7 +263,9 @@ Phase2Results RunPhase2(
     // from it as-if it was compacted. This saves one read and one write pass
     new_table_sizes[table_index] = current_bitfield.count(0, table_size);
 
+#ifdef _PRINT_LOGS
     std::cout << "table " << table_index << " new size: " << new_table_sizes[table_index] << std::endl;
+#endif
 
     return {
         FilteredDisk(&tmp_1_vectors[table_index], std::move(current_bitfield), entry_size)

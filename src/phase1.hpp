@@ -249,7 +249,9 @@ void* phase1_thread(THREADDATA* ptd)
                         // Compute all matches between the two buckets and save indeces.
                         idx_count = f.FindMatches(bucket_L, bucket_R, idx_L, idx_R);
                         if(idx_count >= 10000) {
+#ifdef _PRINT_LOGS
                             std::cout << "sanity check: idx_count exceeded 10000!" << std::endl;
+#endif
                             exit(0);
                         }
                         // We mark entries as used if they took part in a match.
@@ -561,12 +563,16 @@ std::vector<uint64_t> RunPhase1(
     uint32_t const stripe_size,
     uint8_t const flags)
 {
+#ifdef _PRINT_LOGS
     std::cout << "Computing table 1" << std::endl;
     std::cout << "Progress update: 0.01" << std::endl;
+#endif
     SharedData shared_data;
 
     shared_data.stripe_size = stripe_size;
+#ifdef _PRINT_LOGS
     Timer f1_start_time;
+#endif
     F1Calculator f1(k, id);
     uint64_t x = 0;
 
@@ -586,7 +592,9 @@ std::vector<uint64_t> RunPhase1(
     F1thread(0, k, id, &shared_data);
 
     uint64_t prevtableentries = 1ULL << k;
+#ifdef _PRINT_LOGS
     f1_start_time.PrintElapsed("F1 complete, time:");
+#endif
     shared_data.L_sort_manager->FlushCache();
     table_sizes[1] = x + 1;
 
@@ -596,9 +604,13 @@ std::vector<uint64_t> RunPhase1(
 
     // For tables 1 through 6, sort the table, calculate matches, and write
     // the next table. This is the left table index.
+#ifdef _PRINT_LOGS
     double progress_percent[] = {0.06, 0.12, 0.2, 0.28, 0.36, 0.42};
+#endif
     for (uint8_t table_index = 1; table_index < 7; table_index++) {
+#ifdef _PRINT_LOGS
         Timer table_timer;
+#endif
         uint8_t const metadata_size = kVectorLens[table_index + 1] * k;
 
         // Determines how many bytes the entries in our left and right tables will take up.
@@ -616,8 +628,10 @@ std::vector<uint64_t> RunPhase1(
             }
         }
 
+#ifdef _PRINT_LOGS
         std::cout << "Computing table " << int{table_index + 1} << std::endl;
         std::cout << "Progress update: " << progress_percent[table_index - 1] << std::endl;
+#endif
         // Start of parallel execution
 
         FxCalculator f(k, table_index + 1);  // dummy to load static table
@@ -635,8 +649,6 @@ std::vector<uint64_t> RunPhase1(
             shared_data.stripe_size);
 
         shared_data.L_sort_manager->TriggerNewBucket(0);
-
-        Timer computation_pass_timer;
 
         THREADDATA td;
 
@@ -656,7 +668,9 @@ std::vector<uint64_t> RunPhase1(
         // end of parallel execution
 
         // Total matches found in the left table
+#ifdef _PRINT_LOGS
         std::cout << "\tTotal matches: " << shared_data.matches << std::endl;
+#endif
 
         table_sizes[table_index] = shared_data.left_writer_count;
         table_sizes[table_index + 1] = shared_data.right_writer_count;
@@ -677,7 +691,9 @@ std::vector<uint64_t> RunPhase1(
         }
 
         prevtableentries = shared_data.right_writer_count;
+#ifdef _PRINT_LOGS
         table_timer.PrintElapsed("Forward propagation table time:");
+#endif
         if (flags & SHOW_PROGRESS) {
             progress(1, table_index, 6);
         }

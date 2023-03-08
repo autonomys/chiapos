@@ -77,7 +77,9 @@ void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t> &tmp2_vector, P
     auto C3_entry_buf = new uint8_t[size_C3];
     auto P7_entry_buf = new uint8_t[P7_park_size];
 
+#ifdef _PRINT_LOGS
     std::cout << "\tStarting to write C1 and C3 tables" << std::endl;
+#endif
 
     ParkBits to_write_p7;
     const int progress_update_increment = res.final_entries_written / max_phase4_progress_updates;
@@ -161,8 +163,10 @@ void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t> &tmp2_vector, P
     Bits(0, Util::ByteAlign(k)).ToBytes(C1_entry_buf);
     write_to_vector_at(tmp2_vector, final_file_writer_1, C1_entry_buf, Util::ByteAlign(k) / 8);
     final_file_writer_1 += Util::ByteAlign(k) / 8;
+#ifdef _PRINT_LOGS
     std::cout << "\tFinished writing C1 and C3 tables" << std::endl;
     std::cout << "\tWriting C2 table" << std::endl;
+#endif
 
     for (Bits &C2_entry : C2) {
         C2_entry.ToBytes(C1_entry_buf);
@@ -172,7 +176,9 @@ void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t> &tmp2_vector, P
     Bits(0, Util::ByteAlign(k)).ToBytes(C1_entry_buf);
     write_to_vector_at(tmp2_vector, final_file_writer_1, C1_entry_buf, Util::ByteAlign(k) / 8);
     final_file_writer_1 += Util::ByteAlign(k) / 8;
+#ifdef _PRINT_LOGS
     std::cout << "\tFinished writing C2 table" << std::endl;
+#endif
 
     delete[] C3_entry_buf;
     delete[] C1_entry_buf;
@@ -188,6 +194,7 @@ void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t> &tmp2_vector, P
         final_file_writer_1 += 8;
     }
 
+#ifdef _PRINT_LOGS
     std::cout << "\tFinal table pointers:" << std::endl << std::hex;
 
     for (int i = 1; i <= 10; i++) {
@@ -195,5 +202,6 @@ void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t> &tmp2_vector, P
         std::cout << ": 0x" << res.final_table_begin_pointers[i] << std::endl;
     }
     std::cout << std::dec;
+#endif
 }
 #endif  // SRC_CPP_PHASE4_HPP

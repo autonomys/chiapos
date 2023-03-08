@@ -346,8 +346,10 @@ public:
     uint64_t GetValue() const
     {
         if (values_.size() != 1) {
+#ifdef _PRINT_LOGS
             std::cout << "Number of 64 bit values is: " << values_.size() << std::endl;
             std::cout << "Size of bits is: " << GetSize() << std::endl;
+#endif
             throw InvalidStateException(
                 "Number doesn't fit into a 64-bit type. " + std::to_string(GetSize()));
         }
@@ -365,7 +367,9 @@ public:
     void AppendValue(uint128_t value, uint8_t length)
     {
         if (length > 64) {
+#ifdef _PRINT_LOGS
             std::cout << "SPLITTING AppendValue" << std::endl;
+#endif
             DoAppendValue(value >> 64, length - 64);
             DoAppendValue((uint64_t)value, 64);
         } else {
