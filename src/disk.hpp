@@ -28,20 +28,11 @@ struct Disk {
 
 struct BufferedDisk : Disk
 {
-    BufferedDisk(std::vector<uint8_t>* disk) : disk_(disk) {}
+    explicit BufferedDisk(std::vector<uint8_t>* disk) : disk_(disk) {}
 
     uint8_t const* Read(uint64_t begin, uint64_t length) override
     {
-        // TODO: This needs to become non-static for multi-threading
-        static uint8_t temp[128];
-        // all allocations need 7 bytes head-room, since
-        // SliceInt64FromBytes() may overrun by 7 bytes
-        assert(length <= sizeof(temp) - 7);
-
-        // if we're going backwards, don't wipe out the cache. We assume
-        // forward sequential access
-        std::memcpy(temp, disk_->data() + begin, length);
-        return temp;
+        return disk_->data() + begin;
     }
 
     void Truncate(uint64_t const new_size) override
