@@ -33,7 +33,6 @@
 #include "calculate_bucket.hpp"
 #include "encoding.hpp"
 #include "entry_sizes.hpp"
-#include "serialize.hpp"
 #include "util.hpp"
 
 struct plot_header {
@@ -128,22 +127,6 @@ public:
         }
 
         delete[] c2_buf;
-    }
-
-    explicit DiskProver(const std::vector<uint8_t>& vecBytes)
-    {
-        Deserializer deserializer(vecBytes);
-        deserializer >> version;
-        if (version != VERSION) {
-            // TODO: Migrate to new version if we change something related to the data structure
-            throw std::invalid_argument("DiskProver: Invalid version.");
-        }
-        deserializer >> filename;
-        deserializer >> memo;
-        deserializer >> id;
-        deserializer >> k;
-        deserializer >> table_begin_pointers;
-        deserializer >> C2;
     }
 
     DiskProver(DiskProver const&) = delete;
@@ -277,13 +260,6 @@ public:
             }
         }  // Scope for disk_file
         return full_proof;
-    }
-
-    std::vector<uint8_t> ToBytes() const
-    {
-        Serializer serializer;
-        serializer << version << filename << memo << id << k << table_begin_pointers << C2;
-        return serializer.Data();
     }
 
 private:
@@ -740,7 +716,7 @@ private:
                 right = right_fut.get();  // x
             } else {
                 left = GetInputs(xy.second, depth - 1, disk_file);  // y
-                right = GetInputs(xy.first, depth - 1, disk_file);  // x  
+                right = GetInputs(xy.first, depth - 1, disk_file);  // x
             }
             left.insert(left.end(), right.begin(), right.end());
             return left;
