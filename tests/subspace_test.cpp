@@ -95,8 +95,7 @@ void PlotAndTestProofOfSpace(
     uint8_t* plot_id,
     uint32_t buffer,
     uint32_t num_proofs,
-    uint32_t stripe_size,
-    uint8_t num_threads)
+    uint32_t stripe_size)
 {
     DiskPlotter plotter = DiskPlotter();
     uint8_t memo[5] = {1, 2, 3, 4, 5};
@@ -109,8 +108,7 @@ void PlotAndTestProofOfSpace(
         32,
         buffer,
         0,
-        stripe_size,
-        num_threads
+        stripe_size
     );
 
     TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
@@ -118,7 +116,7 @@ void PlotAndTestProofOfSpace(
 
 TEST_CASE("Plotting")
 {
-    PlotAndTestProofOfSpace(100, 17, plot_id_1, 11, 93, 2000, 1);
+    PlotAndTestProofOfSpace(100, 17, plot_id_1, 11, 93, 2000);
 }
 
 

@@ -124,7 +124,6 @@ add_executable(RunTests
 target_link_libraries(RunTests
   PRIVATE
     fse
-    Threads::Threads
     Catch2::Catch2
 )
 
@@ -138,11 +137,8 @@ add_executable(SubspaceTest
 target_link_libraries(SubspaceTest
   PRIVATE
     fse
-    Threads::Threads
     Catch2::Catch2
 )
-
-find_package(Threads REQUIRED)
 
 add_library(uint128 STATIC uint128_t/uint128_t.cpp)
 target_include_directories(uint128 PUBLIC uint128_t)

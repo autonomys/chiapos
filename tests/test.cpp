@@ -539,13 +539,12 @@ void PlotAndTestProofOfSpace(
     uint8_t* plot_id,
     uint32_t buffer,
     uint32_t num_proofs,
-    uint32_t stripe_size,
-    uint8_t num_threads)
+    uint32_t stripe_size)
 {
     DiskPlotter plotter = DiskPlotter();
     uint8_t memo[5] = {1, 2, 3, 4, 5};
     auto plot = plotter.CreatePlotDisk(
-        k, memo, 5, plot_id, 32, buffer, 0, stripe_size, num_threads);
+        k, memo, 5, plot_id, 32, buffer, 0, stripe_size);
     TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
 }
 
@@ -553,23 +552,23 @@ TEST_CASE("Plotting")
 {
     SECTION("Disk plot k18")
     {
-        PlotAndTestProofOfSpace(100, 18, plot_id_1, 11, 95, 4000, 2);
+        PlotAndTestProofOfSpace(100, 18, plot_id_1, 11, 95, 4000);
     }
     SECTION("Disk plot k19")
     {
-        PlotAndTestProofOfSpace(100, 19, plot_id_1, 100, 71, 8192, 2);
+        PlotAndTestProofOfSpace(100, 19, plot_id_1, 100, 71, 8192);
     }
     SECTION("Disk plot k19 single-thread")
     {
-        PlotAndTestProofOfSpace(100, 19, plot_id_1, 100, 71, 8192, 1);
+        PlotAndTestProofOfSpace(100, 19, plot_id_1, 100, 71, 8192);
     }
     SECTION("Disk plot k20")
     {
-        PlotAndTestProofOfSpace(500, 20, plot_id_3, 100, 469, 16000, 2);
+        PlotAndTestProofOfSpace(500, 20, plot_id_3, 100, 469, 16000);
     }
     SECTION("Disk plot k21")
     {
-        PlotAndTestProofOfSpace(5000, 21, plot_id_3, 100, 4945, 8192, 4);
+        PlotAndTestProofOfSpace(5000, 21, plot_id_3, 100, 4945, 8192);
     }
     // SECTION("Disk plot k24") { PlotAndTestProofOfSpace(100, 24, plot_id_3,
     // 100, 107); }
@@ -826,7 +825,7 @@ TEST_CASE("DiskProver")
         auto plot = plotter.CreatePlotDisk(
             18, memo.data(),
             memo.size(), plot_id_1, 32, 11, 0,
-            4000, 2);
+            4000);
         DiskProver prover1(plot);
         auto* p1_memo_ptr = prover1.GetMemo().data();
         auto* p1_id_ptr = prover1.GetId().data();

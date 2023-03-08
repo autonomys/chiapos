@@ -15,11 +15,6 @@
 #ifndef SRC_CPP_PHASE1_HPP_
 #define SRC_CPP_PHASE1_HPP_
 
-#ifndef _WIN32
-#include <semaphore.h>
-#include <unistd.h>
-#endif
-
 #include <math.h>
 #include <stdio.h>
 
@@ -32,16 +27,13 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include <thread>
 #include <memory>
-#include <mutex>
 
 #include "calculate_bucket.hpp"
 #include "entry_sizes.hpp"
 #include "exceptions.hpp"
 #include "pos_constants.hpp"
 #include "sort_manager.hpp"
-#include "threading.hpp"
 #include "util.hpp"
 #include "progress.hpp"
 
@@ -52,13 +44,9 @@ struct SharedData {
     std::unique_ptr<SortManager> L_sort_manager;
     std::unique_ptr<SortManager> R_sort_manager;
     uint64_t stripe_size;
-    uint8_t num_threads;
 };
 
 struct THREADDATA {
-    int index;
-    Sem::type* mine;
-    Sem::type* theirs;
     uint64_t right_entry_size_bytes;
     uint8_t k;
     uint8_t table_index;
@@ -146,10 +134,10 @@ void* phase1_thread(THREADDATA* ptd)
     // Start at left table pos = 0 and iterate through the whole table. Note that the left table
     // will already be sorted by y
     uint64_t totalstripes = (prevtableentries + shared_data->stripe_size - 1) / shared_data->stripe_size;
-    uint64_t threadstripes = (totalstripes + shared_data->num_threads - 1) / shared_data->num_threads;
+    uint64_t threadstripes = totalstripes;
 
     for (uint64_t stripe = 0; stripe < threadstripes; stripe++) {
-        uint64_t pos = (stripe * shared_data->num_threads + ptd->index) * shared_data->stripe_size;
+        uint64_t pos = stripe * shared_data->stripe_size;
         uint64_t const endpos = pos + shared_data->stripe_size + 1;  // one y value overlap
         uint64_t left_reader = pos * entry_size_bytes;
         uint64_t left_writer_count = 0;
@@ -176,8 +164,6 @@ void* phase1_thread(THREADDATA* ptd)
         bool bStripePregamePair = false;
         bool bStripeStartPair = false;
         bool need_new_bucket = false;
-        bool first_thread = ptd->index % shared_data->num_threads == 0;
-        bool last_thread = ptd->index % shared_data->num_threads == shared_data->num_threads - 1;
 
         uint64_t L_position_base = 0;
         uint64_t R_position_base = 0;
@@ -197,18 +183,9 @@ void* phase1_thread(THREADDATA* ptd)
             stripe_start_correction = 0;
         }
 
-        Sem::Wait(ptd->theirs);
         need_new_bucket = shared_data->L_sort_manager->CloseToNewBucket(left_reader);
         if (need_new_bucket) {
-            if (!first_thread) {
-                Sem::Wait(ptd->theirs);
-            }
             shared_data->L_sort_manager->TriggerNewBucket(left_reader);
-        }
-        if (!last_thread) {
-            // Do not post if we are the last thread, because first thread has already
-            // waited for us to finish when it starts
-            Sem::Post(ptd->mine);
         }
 
         while (pos < prevtableentries + 1) {
@@ -473,11 +450,6 @@ void* phase1_thread(THREADDATA* ptd)
             ++pos;
         }
 
-        // If we needed new bucket, we already waited
-        // Do not wait if we are the first thread, since we are guaranteed that everything is written
-        if (!need_new_bucket && !first_thread) {
-            Sem::Wait(ptd->theirs);
-        }
 
         uint32_t const ysize = (table_index + 1 == 7) ? k : k + kExtraBits;
         uint32_t const startbyte = ysize / 8;
@@ -523,13 +495,12 @@ void* phase1_thread(THREADDATA* ptd)
         shared_data->left_writer_count += left_writer_count;
 
         shared_data->matches += matches;
-        Sem::Post(ptd->mine);
     }
 
     return 0;
 }
 
-void* F1thread(int const index, uint8_t const k, const uint8_t* id, SharedData* shared_data, std::mutex* smm)
+void* F1thread(int const index, uint8_t const k, const uint8_t* id, SharedData* shared_data)
 {
     uint32_t const entry_size_bytes = 16;
     uint64_t const max_value = ((uint64_t)1 << (k));
@@ -543,8 +514,7 @@ void* F1thread(int const index, uint8_t const k, const uint8_t* id, SharedData* 
 
     // Instead of computing f1(1), f1(2), etc, for each x, we compute them in batches
     // to increase CPU efficency.
-    for (uint64_t lp = index; lp <= (((uint64_t)1) << (k - kBatchSizes));
-         lp = lp + shared_data->num_threads)
+    for (uint64_t lp = index; lp <= (((uint64_t)1) << (k - kBatchSizes)); lp = lp + 1)
     {
         // For each pair x, y in the batch
 
@@ -565,8 +535,6 @@ void* F1thread(int const index, uint8_t const k, const uint8_t* id, SharedData* 
             right_writer_count++;
             x++;
         }
-
-        std::lock_guard<std::mutex> l(*smm);
 
         // Write it out
         for (uint32_t i = 0; i < right_writer_count; i++) {
@@ -591,7 +559,6 @@ std::vector<uint64_t> RunPhase1(
     uint32_t const num_buckets,
     uint32_t const log_num_buckets,
     uint32_t const stripe_size,
-    uint8_t const num_threads,
     uint8_t const flags)
 {
     std::cout << "Computing table 1" << std::endl;
@@ -599,7 +566,6 @@ std::vector<uint64_t> RunPhase1(
     SharedData shared_data;
 
     shared_data.stripe_size = stripe_size;
-    shared_data.num_threads = num_threads;
     Timer f1_start_time;
     F1Calculator f1(k, id);
     uint64_t x = 0;
@@ -616,20 +582,8 @@ std::vector<uint64_t> RunPhase1(
     // These are used for sorting on disk. The sort on disk code needs to know how
     // many elements are in each bucket.
     std::vector<uint64_t> table_sizes = std::vector<uint64_t>(8, 0);
-    std::mutex sort_manager_mutex;
 
-    {
-        // Start of parallel execution
-        std::vector<std::thread> threads;
-        for (int i = 0; i < num_threads; i++) {
-            threads.emplace_back(F1thread, i, k, id, &shared_data, &sort_manager_mutex);
-        }
-
-        for (auto& t : threads) {
-            t.join();
-        }
-        // end of parallel execution
-    }
+    F1thread(0, k, id, &shared_data);
 
     uint64_t prevtableentries = 1ULL << k;
     f1_start_time.PrintElapsed("F1 complete, time:");
@@ -684,42 +638,20 @@ std::vector<uint64_t> RunPhase1(
 
         Timer computation_pass_timer;
 
-        auto td = std::make_unique<THREADDATA[]>(num_threads);
-        auto mutex = std::make_unique<Sem::type[]>(num_threads);
+        THREADDATA td;
 
-        std::vector<std::thread> threads;
+        td.prevtableentries = prevtableentries;
+        td.right_entry_size_bytes = right_entry_size_bytes;
+        td.k = k;
+        td.table_index = table_index;
+        td.metadata_size = metadata_size;
+        td.entry_size_bytes = entry_size_bytes;
+        td.pos_size = pos_size;
+        td.compressed_entry_size_bytes = compressed_entry_size_bytes;
+        td.ptmp_1_vectors = &tmp_1_vectors;
+        td.shared_data = &shared_data;
 
-        for (int i = 0; i < num_threads; i++) {
-            mutex[i] = Sem::Create();
-        }
-
-        for (int i = 0; i < num_threads; i++) {
-            td[i].index = i;
-            td[i].mine = &mutex[i];
-            td[i].theirs = &mutex[(num_threads + i - 1) % num_threads];
-
-            td[i].prevtableentries = prevtableentries;
-            td[i].right_entry_size_bytes = right_entry_size_bytes;
-            td[i].k = k;
-            td[i].table_index = table_index;
-            td[i].metadata_size = metadata_size;
-            td[i].entry_size_bytes = entry_size_bytes;
-            td[i].pos_size = pos_size;
-            td[i].compressed_entry_size_bytes = compressed_entry_size_bytes;
-            td[i].ptmp_1_vectors = &tmp_1_vectors;
-            td[i].shared_data = &shared_data;
-
-            threads.emplace_back(phase1_thread, &td[i]);
-        }
-        Sem::Post(&mutex[num_threads - 1]);
-
-        for (auto& t : threads) {
-            t.join();
-        }
-
-        for (int i = 0; i < num_threads; i++) {
-            Sem::Destroy(mutex[i]);
-        }
+        phase1_thread(&td);
 
         // end of parallel execution
 

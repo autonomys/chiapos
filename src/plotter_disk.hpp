@@ -57,7 +57,6 @@ public:
         uint32_t buf_megabytes_input = 0,
         uint32_t num_buckets_input = 0,
         uint64_t stripe_size_input = 0,
-        uint8_t num_threads_input = 0,
         uint8_t phases_flags = ENABLE_BITFIELD)
     {
         // Increases the open file limit, we will open a lot of files.
@@ -72,16 +71,10 @@ public:
         }
 
         uint32_t stripe_size, buf_megabytes, num_buckets;
-        uint8_t num_threads;
         if (stripe_size_input != 0) {
             stripe_size = stripe_size_input;
         } else {
             stripe_size = 65536;
-        }
-        if (num_threads_input != 0) {
-            num_threads = num_threads_input;
-        } else {
-            num_threads = 2;
         }
         if (buf_megabytes_input != 0) {
             buf_megabytes = buf_megabytes_input;
@@ -94,7 +87,7 @@ public:
         }
 
         // Subtract some ram to account for dynamic allocation through the code
-        uint64_t thread_memory = num_threads * (2 * (stripe_size + 5000)) *
+        uint64_t thread_memory = (2 * (stripe_size + 5000)) *
                                  EntrySizes::GetMaxEntrySize(k, 4, true) / (1024 * 1024);
         uint64_t sub_mbytes = (5 + (int)std::min(buf_megabytes * 0.05, (double)50) + thread_memory);
         if (sub_mbytes > buf_megabytes) {
@@ -147,8 +140,7 @@ public:
         std::cout << "Plot size is: " << static_cast<int>(k) << std::endl;
         std::cout << "Buffer size is: " << buf_megabytes << "MiB" << std::endl;
         std::cout << "Using " << num_buckets << " buckets" << std::endl;
-        std::cout << "Using " << (int)num_threads << " threads of stripe size " << stripe_size
-                  << std::endl;
+        std::cout << "Using 1 thread of stripe size " << stripe_size << std::endl;
         std::cout << "Process ID is: " << ::getpid() << std::endl;
 
         auto tmp2_vector = std::vector<uint8_t>();
@@ -183,7 +175,6 @@ public:
                 num_buckets,
                 log_num_buckets,
                 stripe_size,
-                num_threads,
                 phases_flags);
             p1.PrintElapsed("Time for phase 1 =");
 
