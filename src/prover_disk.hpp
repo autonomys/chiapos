@@ -67,8 +67,6 @@ public:
         // 1 byte    - k
         // 2 bytes   - format description length
         // x bytes   - format description
-        // 2 bytes   - memo length
-        // x bytes   - memo
 
         read_from_vector(&plot, 0, (uint8_t*)&header, sizeof(header));
         if (memcmp(header.magic, "Proof of Space Plot", sizeof(header.magic)) != 0)
@@ -85,11 +83,6 @@ public:
         memcpy(id.data(), header.id, sizeof(header.id));
         this->k = header.k;
         auto plot_offset = offsetof(struct plot_header, fmt_desc) + fmt_desc_len;
-
-        uint8_t size_buf[2];
-        plot_offset += read_from_vector(&plot, plot_offset, size_buf, 2);
-        memo.resize(Util::TwoBytesToInt(size_buf));
-        plot_offset += read_from_vector(&plot, plot_offset, memo.data(), memo.size());
 
         this->table_begin_pointers = std::vector<uint64_t>(11, 0);
         this->C2 = std::vector<uint64_t>();
@@ -135,7 +128,6 @@ public:
     DiskProver(DiskProver&& other) noexcept
     {
         plot = std::move(other.plot);
-        memo = std::move(other.memo);
         id = std::move(other.id);
         k = other.k;
         table_begin_pointers = std::move(other.table_begin_pointers);
@@ -150,8 +142,6 @@ public:
         }
         Encoding::ANSFree(kC3R);
     }
-
-    const std::vector<uint8_t>& GetMemo() { return memo; }
 
     const std::vector<uint8_t>& GetId() { return id; }
 
@@ -241,7 +231,6 @@ public:
 private:
     uint16_t version{VERSION};
     const std::vector<uint8_t>* plot;
-    std::vector<uint8_t> memo;
     std::vector<uint8_t> id;  // Unique plot id
     uint8_t k;
     std::vector<uint64_t> table_begin_pointers;

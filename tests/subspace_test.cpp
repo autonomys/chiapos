@@ -98,12 +98,9 @@ void PlotAndTestProofOfSpace(
     uint32_t stripe_size)
 {
     DiskPlotter plotter = DiskPlotter();
-    uint8_t memo[5] = {1, 2, 3, 4, 5};
 
     auto plot = plotter.CreatePlotDisk(
         k,
-        memo,
-        5,
         plot_id,
         32,
         buffer,

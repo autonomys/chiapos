@@ -50,8 +50,6 @@ public:
     // end of the process.
     std::vector<uint8_t> CreatePlotDisk(
         uint8_t k,
-        const uint8_t* memo,
-        uint32_t memo_len,
         const uint8_t* id,
         uint32_t id_len,
         uint32_t buf_megabytes_input = 0,
@@ -196,7 +194,7 @@ public:
             p2.PrintElapsed("Time for phase 2 =");
 
             // Now we open a new file, where the final contents of the plot will be stored.
-            uint32_t header_size = WriteHeader(tmp2_vector, k, id, memo, memo_len);
+            uint32_t header_size = WriteHeader(tmp2_vector, k, id);
 
             std::cout << std::endl
                   << "Starting phase 3/4: Compression... " << Timer::GetNow();
@@ -248,17 +246,13 @@ private:
     uint32_t WriteHeader(
         std::vector<uint8_t>& plot_Disk,
         uint8_t k,
-        const uint8_t* id,
-        const uint8_t* memo,
-        uint32_t memo_len)
+        const uint8_t* id)
     {
         // 19 bytes  - "Proof of Space Plot" (utf-8)
         // 32 bytes  - unique plot id
         // 1 byte    - k
         // 2 bytes   - format description length
         // x bytes   - format description
-        // 2 bytes   - memo length
-        // x bytes   - memo
 
         std::string header_text = "Proof of Space Plot";
         uint64_t write_pos = 0;
@@ -278,10 +272,6 @@ private:
             plot_Disk, write_pos,
             (uint8_t*)kFormatDescription.data(),
             kFormatDescription.size());
-
-        Util::IntToTwoBytes(size_buffer, memo_len);
-        write_pos += write_to_vector_at(plot_Disk, write_pos, size_buffer, 2);
-        write_pos += write_to_vector_at(plot_Disk, write_pos, memo, memo_len);
 
         uint8_t pointers[10 * 8];
         memset(pointers, 0, 10 * 8);

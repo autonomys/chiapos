@@ -542,9 +542,7 @@ void PlotAndTestProofOfSpace(
     uint32_t stripe_size)
 {
     DiskPlotter plotter = DiskPlotter();
-    uint8_t memo[5] = {1, 2, 3, 4, 5};
-    auto plot = plotter.CreatePlotDisk(
-        k, memo, 5, plot_id, 32, buffer, 0, stripe_size);
+    auto plot = plotter.CreatePlotDisk(k, plot_id, 32, buffer, 0, stripe_size);
     TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
 }
 
@@ -821,22 +819,15 @@ TEST_CASE("DiskProver")
     SECTION("Move constructor")
     {
         DiskPlotter plotter = DiskPlotter();
-        std::vector<uint8_t> memo{1, 2, 3};
-        auto plot = plotter.CreatePlotDisk(
-            18, memo.data(),
-            memo.size(), plot_id_1, 32, 11, 0,
-            4000);
+        auto plot = plotter.CreatePlotDisk(18, plot_id_1, 32, 11, 0, 4000);
         DiskProver prover1(plot);
-        auto* p1_memo_ptr = prover1.GetMemo().data();
         auto* p1_id_ptr = prover1.GetId().data();
         auto* p1_table_begin_pointers_ptr = prover1.GetTableBeginPointers().data();
         auto* p1_C2_ptr = prover1.GetC2().data();
         DiskProver prover2(std::move(prover1));
-        REQUIRE(prover2.GetMemo().data() == p1_memo_ptr);
         REQUIRE(prover2.GetId().data() == p1_id_ptr);
         REQUIRE(prover2.GetTableBeginPointers().data() == p1_table_begin_pointers_ptr);
         REQUIRE(prover2.GetC2().data() == p1_C2_ptr);
-        REQUIRE(prover1.GetMemo().empty());
         REQUIRE(prover1.GetId().empty());
         REQUIRE(prover1.GetSize() == prover1.GetSize());
         REQUIRE(prover1.GetTableBeginPointers().empty());
