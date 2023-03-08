@@ -46,7 +46,7 @@ void HexToBytes(const string& hex, uint8_t* result)
 }
 
 void TestProofOfSpace(
-    const std::vector<uint8_t>& plot,
+    const std::vector<uint8_t>* plot,
     uint32_t iterations,
     uint8_t k,
     uint8_t* plot_id,
@@ -101,7 +101,7 @@ void PlotAndTestProofOfSpace(
 {
     DiskPlotter plotter = DiskPlotter();
 
-    auto plot = plotter.CreatePlotDisk(
+    auto* plot = plotter.CreatePlotDisk(
         k,
         plot_id,
         32,
@@ -111,6 +111,8 @@ void PlotAndTestProofOfSpace(
     );
 
     TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
+
+    delete plot;
 }
 
 TEST_CASE("Plotting")

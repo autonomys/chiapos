@@ -38,7 +38,7 @@
 // C1 (checkpoint values)
 // C2 (checkpoint values into)
 // C3 (deltas of f7s between C1 checkpoints)
-void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t> &tmp2_vector, Phase3Results &res,
+void RunPhase4(uint8_t k, uint8_t pos_size, std::vector<uint8_t>* tmp2_vector, Phase3Results &res,
                const uint8_t flags, const int max_phase4_progress_updates)
 {
     uint32_t P7_park_size = Util::ByteAlign((k + 1) * kEntriesPerPark) / 8;

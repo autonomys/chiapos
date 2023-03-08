@@ -490,14 +490,14 @@ void HexToBytes(const string& hex, uint8_t* result)
 }
 
 void TestProofOfSpace(
-    const std::vector<uint8_t>& plot,
+    const std::vector<uint8_t>* plot,
     uint32_t iterations,
     uint8_t k,
     uint8_t* plot_id,
     uint32_t num_proofs)
 {
     DiskProver prover(plot);
-    uint8_t* proof_data = new uint8_t[8 * k];
+    auto* proof_data = new uint8_t[8 * k];
     uint32_t success = 0;
     // Tries an edge case challenge with many 1s in the front, and ensures there is no segfault
     vector<unsigned char> hash(picosha2::k_digest_size);
@@ -544,8 +544,9 @@ void PlotAndTestProofOfSpace(
     uint32_t stripe_size)
 {
     DiskPlotter plotter = DiskPlotter();
-    auto plot = plotter.CreatePlotDisk(k, plot_id, 32, buffer, 0, stripe_size);
+    auto* plot = plotter.CreatePlotDisk(k, plot_id, 32, buffer, 0, stripe_size);
     TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
+    delete plot;
 }
 
 TEST_CASE("Plotting")
@@ -834,6 +835,7 @@ TEST_CASE("DiskProver")
         REQUIRE(prover1.GetSize() == prover1.GetSize());
         REQUIRE(prover1.GetTableBeginPointers().empty());
         REQUIRE(prover1.GetC2().empty());
+        delete plot;
     }
 }
 

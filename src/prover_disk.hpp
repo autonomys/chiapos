@@ -57,10 +57,10 @@ public:
     static const uint16_t VERSION{1};
     // The constructor opens the file, and reads the contents of the file header. The table pointers
     // will be used to find and seek to all seven tables, at the time of proving.
-    explicit DiskProver(const std::vector<uint8_t>& plot) : id(kIdLen)
+    explicit DiskProver(const std::vector<uint8_t>* plot) : id(kIdLen)
     {
         struct plot_header header{};
-        this->plot = &plot;
+        this->plot = plot;
 
         // 19 bytes  - "Proof of Space Plot" (utf-8)
         // 32 bytes  - unique plot id
@@ -68,7 +68,7 @@ public:
         // 2 bytes   - format description length
         // x bytes   - format description
 
-        read_from_vector(&plot, 0, (uint8_t*)&header, sizeof(header));
+        read_from_vector(plot, 0, (uint8_t*)&header, sizeof(header));
         if (memcmp(header.magic, "Proof of Space Plot", sizeof(header.magic)) != 0)
             throw std::invalid_argument("Invalid plot header magic");
 
@@ -89,7 +89,7 @@ public:
 
         uint8_t pointer_buf[8];
         for (uint8_t i = 1; i < 11; i++) {
-            plot_offset += read_from_vector(&plot, plot_offset, pointer_buf, 8);
+            plot_offset += read_from_vector(plot, plot_offset, pointer_buf, 8);
             this->table_begin_pointers[i] = Util::EightBytesToInt(pointer_buf);
         }
 
@@ -106,7 +106,7 @@ public:
         uint64_t prev_c2_f7 = 0;
         auto* c2_buf = new uint8_t[c2_size];
         for (uint32_t i = 0; i < c2_entries - 1; i++) {
-            plot_offset += read_from_vector(&plot, plot_offset, c2_buf, c2_size);
+            plot_offset += read_from_vector(plot, plot_offset, c2_buf, c2_size);
 
             const uint64_t f7 = Bits(c2_buf, c2_size, c2_size * 8).Slice(0, k).GetValue();
 

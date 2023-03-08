@@ -35,12 +35,12 @@ struct Phase3Results {
     std::unique_ptr<SortManager> table7_sm;
 };
 
-static uint32_t write_to_vector_at(std::vector<uint8_t> &vector, uint64_t position, const uint8_t* bytes, uint32_t size) {
-    if (vector.size() < position + size) {
-        vector.resize(position + size);
+static uint32_t write_to_vector_at(std::vector<uint8_t>* vector, uint64_t position, const uint8_t* bytes, uint32_t size) {
+    if (vector->size() < position + size) {
+        vector->resize(position + size);
     }
 
-    std::memcpy(vector.data() + position, bytes, size);
+    std::memcpy(vector->data() + position, bytes, size);
 
     return size;
 }
@@ -53,7 +53,7 @@ static uint32_t write_to_vector_at(std::vector<uint8_t> &vector, uint64_t positi
 // is: [2k bits of first_line_point]  [EPP-1 stubs] [Deltas size] [EPP-1 deltas]....
 // [first_line_point] ...
 void WriteParkToFile(
-    std::vector<uint8_t> &final_disk,
+    std::vector<uint8_t>* final_disk,
     uint64_t table_start,
     uint64_t park_index,
     uint32_t park_size_bytes,
@@ -131,7 +131,7 @@ void WriteParkToFile(
 // document for more details on the algorithm.
 Phase3Results RunPhase3(
     uint8_t k,
-    std::vector<uint8_t> &tmp2_vector /*filename*/,
+    std::vector<uint8_t>* tmp2_vector /*filename*/,
     Phase2Results res2,
     const uint8_t *id,
     uint32_t header_size,

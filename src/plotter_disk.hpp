@@ -48,7 +48,7 @@ public:
     // (filename + ".table1.tmp", filename + ".p2.t3.sort_bucket_4.tmp", etc.) are created
     // and their total size will be larger than the final plot file. Temp files are deleted at the
     // end of the process.
-    std::vector<uint8_t> CreatePlotDisk(
+    std::vector<uint8_t>* CreatePlotDisk(
         uint8_t k,
         const uint8_t* id,
         uint32_t id_len,
@@ -136,7 +136,7 @@ public:
         std::cout << "Process ID is: " << ::getpid() << std::endl;
 #endif
 
-        auto tmp2_vector = std::vector<uint8_t>();
+        auto tmp2_vector = new std::vector<uint8_t>();
 
         {
             // Scope for FileDisk
@@ -257,7 +257,7 @@ public:
 private:
     // Writes the plot file header to a file
     uint32_t WriteHeader(
-        std::vector<uint8_t>& plot_Disk,
+        std::vector<uint8_t>* plot_vector,
         uint8_t k,
         const uint8_t* id)
     {
@@ -269,26 +269,26 @@ private:
 
         std::string header_text = "Proof of Space Plot";
         uint64_t write_pos = 0;
-        plot_Disk.insert(plot_Disk.end(), header_text.begin(), header_text.end());
+        plot_vector->insert(plot_vector->end(), header_text.begin(), header_text.end());
         write_pos += header_text.size();
 
-        write_pos += write_to_vector_at(plot_Disk, write_pos, id, kIdLen);
+        write_pos += write_to_vector_at(plot_vector, write_pos, id, kIdLen);
 
         uint8_t k_buffer[1];
         k_buffer[0] = k;
-        write_pos += write_to_vector_at(plot_Disk, write_pos, k_buffer, 1);
+        write_pos += write_to_vector_at(plot_vector, write_pos, k_buffer, 1);
 
         uint8_t size_buffer[2];
         Util::IntToTwoBytes(size_buffer, kFormatDescription.size());
-        write_pos += write_to_vector_at(plot_Disk, write_pos, size_buffer, 2);
+        write_pos += write_to_vector_at(plot_vector, write_pos, size_buffer, 2);
         write_pos += write_to_vector_at(
-            plot_Disk, write_pos,
+            plot_vector, write_pos,
             (uint8_t*)kFormatDescription.data(),
             kFormatDescription.size());
 
         uint8_t pointers[10 * 8];
         memset(pointers, 0, 10 * 8);
-        write_pos += write_to_vector_at(plot_Disk, write_pos, pointers, 10 * 8);
+        write_pos += write_to_vector_at(plot_vector, write_pos, pointers, 10 * 8);
 
 #ifdef _PRINT_LOGS
         std::cout << "Wrote: " << write_pos << std::endl;
