@@ -17,8 +17,6 @@
 
 #include <vector>
 
-#include "chia_filesystem.hpp"
-
 #include "bitfield.hpp"
 
 struct Disk {

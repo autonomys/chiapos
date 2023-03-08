@@ -16,13 +16,6 @@ project(chiapos C CXX ASM)
 # CMake 3.14+
 include(FetchContent)
 
-FetchContent_Declare(
-  gulrak
-  GIT_REPOSITORY https://github.com/gulrak/filesystem.git
-  GIT_TAG        v1.5.6
-)
-FetchContent_MakeAvailable(gulrak)
-
 set(FSE_LIB ${CMAKE_CURRENT_SOURCE_DIR}/lib/FiniteStateEntropy/lib)
 set(FSE_FILES
     ${FSE_LIB}/fse_compress.c
@@ -34,7 +27,6 @@ set(FSE_FILES
 include_directories(
   ${INCLUDE_DIRECTORIES}
   ${CMAKE_CURRENT_SOURCE_DIR}/../lib/include
-#  ${gulrak_SOURCE_DIR}/include/ghc
   ${CMAKE_CURRENT_SOURCE_DIR}/../lib/FiniteStateEntropy/lib
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_SOURCE_DIR}/test
@@ -159,15 +151,9 @@ target_compile_features(fse PUBLIC cxx_std_17)
 target_compile_features(RunTests PUBLIC cxx_std_17)
 target_compile_features(SubspaceTest PUBLIC cxx_std_17)
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-elseif (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
-elseif (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-elseif (MSVC)
+if (MSVC)
   target_link_libraries(RunTests PRIVATE uint128)
   target_link_libraries(SubspaceTest PRIVATE uint128)
-else()
-  target_link_libraries(RunTests PRIVATE stdc++fs)
-  target_link_libraries(SubspaceTest PRIVATE stdc++fs)
 endif()
 
 enable_testing()

@@ -44,14 +44,14 @@ void HexToBytes(const string& hex, uint8_t* result)
 }
 
 void TestProofOfSpace(
-    std::string filename,
+    const std::vector<uint8_t>& plot,
     uint32_t iterations,
     uint8_t k,
     uint8_t* plot_id,
     uint32_t num_proofs)
 {
-    DiskProver prover(filename);
-    uint8_t* proof_data = new uint8_t[8 * k];
+    DiskProver prover(plot);
+    auto* proof_data = new uint8_t[8 * k];
     uint32_t success = 0;
     // Tries an edge case challenge with many 1s in the front, and ensures there is no segfault
     vector<unsigned char> hash(picosha2::k_digest_size);
@@ -90,7 +90,6 @@ void TestProofOfSpace(
 }
 
 void PlotAndTestProofOfSpace(
-    std::string filename,
     uint32_t iterations,
     uint8_t k,
     uint8_t* plot_id,
@@ -101,9 +100,8 @@ void PlotAndTestProofOfSpace(
 {
     DiskPlotter plotter = DiskPlotter();
     uint8_t memo[5] = {1, 2, 3, 4, 5};
-    plotter.CreatePlotDisk(
-        ".",
-        filename,
+
+    auto plot = plotter.CreatePlotDisk(
         k,
         memo,
         5,
@@ -114,13 +112,13 @@ void PlotAndTestProofOfSpace(
         stripe_size,
         num_threads
     );
-    TestProofOfSpace(filename, iterations, k, plot_id, num_proofs);
-    REQUIRE(remove(filename.c_str()) == 0);
+
+    TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
 }
 
 TEST_CASE("Plotting")
 {
-    PlotAndTestProofOfSpace("cpp-test-plot.dat", 100, 17, plot_id_1, 11, 93, 2000, 1);
+    PlotAndTestProofOfSpace(100, 17, plot_id_1, 11, 93, 2000, 1);
 }
 
 

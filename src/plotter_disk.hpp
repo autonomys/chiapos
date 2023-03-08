@@ -21,18 +21,14 @@
 #include <unistd.h>
 #endif
 
-#include <math.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
-#include <algorithm>
-#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <map>
 #include <string>
 #include <vector>
-#include <memory>
 
 #include "calculate_bucket.hpp"
 #include "encoding.hpp"
@@ -46,17 +42,13 @@
 #include "sort_manager.hpp"
 #include "util.hpp"
 
-#define B17PHASE23
-
 class DiskPlotter {
 public:
     // This method creates a plot on disk with the filename. Many temporary files
     // (filename + ".table1.tmp", filename + ".p2.t3.sort_bucket_4.tmp", etc.) are created
     // and their total size will be larger than the final plot file. Temp files are deleted at the
     // end of the process.
-    void CreatePlotDisk(
-        std::string final_dirname,
-        std::string filename,
+    std::vector<uint8_t> CreatePlotDisk(
         uint8_t k,
         const uint8_t* memo,
         uint32_t memo_len,
@@ -155,14 +147,9 @@ public:
         std::cout << "Plot size is: " << static_cast<int>(k) << std::endl;
         std::cout << "Buffer size is: " << buf_megabytes << "MiB" << std::endl;
         std::cout << "Using " << num_buckets << " buckets" << std::endl;
-        std::cout << "Final Directory is: " << final_dirname << std::endl;
         std::cout << "Using " << (int)num_threads << " threads of stripe size " << stripe_size
                   << std::endl;
         std::cout << "Process ID is: " << ::getpid() << std::endl;
-
-        fs::path final_filename = fs::path(final_dirname) / fs::path(filename);
-
-        fs::remove(final_filename);
 
         auto tmp2_vector = std::vector<uint8_t>();
 
@@ -262,10 +249,7 @@ public:
             all_phases.PrintElapsed("Total time =");
         }
 
-        std::ofstream output_file(final_filename);
-        std::copy(tmp2_vector.begin(), tmp2_vector.end(),
-                  std::ostream_iterator<uint8_t>(output_file));
-        std::cout << "Wrote final file to " << final_filename << std::endl;
+        return tmp2_vector;
     }
 
 private:

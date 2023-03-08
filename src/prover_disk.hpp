@@ -24,7 +24,6 @@
 #include <fstream>
 #include <future>
 #include <iostream>
-#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,6 +42,13 @@ struct plot_header {
     uint8_t fmt_desc[50];
 };
 
+uint32_t read_from_vector(const std::vector<uint8_t>* vector, uint32_t position, uint8_t* bytes, uint32_t size)
+{
+    std::memcpy(bytes, vector->data() + position, size);
+
+    return size;
+}
+
 
 // The DiskProver, given a correctly formatted plot file, can efficiently generate valid proofs
 // of space, for a given challenge.
@@ -51,16 +57,11 @@ public:
     static const uint16_t VERSION{1};
     // The constructor opens the file, and reads the contents of the file header. The table pointers
     // will be used to find and seek to all seven tables, at the time of proving.
-    explicit DiskProver(const std::string& filename) : id(kIdLen)
+    explicit DiskProver(const std::vector<uint8_t>& plot) : id(kIdLen)
     {
         struct plot_header header{};
-        this->filename = filename;
+        this->plot = &plot;
 
-        std::ifstream disk_file(filename, std::ios::in | std::ios::binary);
-
-        if (!disk_file.is_open()) {
-            throw std::invalid_argument("Invalid file " + filename);
-        }
         // 19 bytes  - "Proof of Space Plot" (utf-8)
         // 32 bytes  - unique plot id
         // 1 byte    - k
@@ -69,7 +70,7 @@ public:
         // 2 bytes   - memo length
         // x bytes   - memo
 
-        SafeRead(disk_file, (uint8_t*)&header, sizeof(header));
+        read_from_vector(&plot, 0, (uint8_t*)&header, sizeof(header));
         if (memcmp(header.magic, "Proof of Space Plot", sizeof(header.magic)) != 0)
             throw std::invalid_argument("Invalid plot header magic");
 
@@ -83,23 +84,23 @@ public:
         }
         memcpy(id.data(), header.id, sizeof(header.id));
         this->k = header.k;
-        SafeSeek(disk_file, offsetof(struct plot_header, fmt_desc) + fmt_desc_len);
+        auto plot_offset = offsetof(struct plot_header, fmt_desc) + fmt_desc_len;
 
         uint8_t size_buf[2];
-        SafeRead(disk_file, size_buf, 2);
+        plot_offset += read_from_vector(&plot, plot_offset, size_buf, 2);
         memo.resize(Util::TwoBytesToInt(size_buf));
-        SafeRead(disk_file, memo.data(), memo.size());
+        plot_offset += read_from_vector(&plot, plot_offset, memo.data(), memo.size());
 
         this->table_begin_pointers = std::vector<uint64_t>(11, 0);
         this->C2 = std::vector<uint64_t>();
 
         uint8_t pointer_buf[8];
         for (uint8_t i = 1; i < 11; i++) {
-            SafeRead(disk_file, pointer_buf, 8);
+            plot_offset += read_from_vector(&plot, plot_offset, pointer_buf, 8);
             this->table_begin_pointers[i] = Util::EightBytesToInt(pointer_buf);
         }
 
-        SafeSeek(disk_file, table_begin_pointers[9]);
+        plot_offset = table_begin_pointers[9];
 
         uint8_t c2_size = (Util::ByteAlign(k) / 8);
         uint32_t c2_entries = (table_begin_pointers[10] - table_begin_pointers[9]) / c2_size;
@@ -112,7 +113,7 @@ public:
         uint64_t prev_c2_f7 = 0;
         auto* c2_buf = new uint8_t[c2_size];
         for (uint32_t i = 0; i < c2_entries - 1; i++) {
-            SafeRead(disk_file, c2_buf, c2_size);
+            plot_offset += read_from_vector(&plot, plot_offset, c2_buf, c2_size);
 
             const uint64_t f7 = Bits(c2_buf, c2_size, c2_size * 8).Slice(0, k).GetValue();
 
@@ -133,7 +134,7 @@ public:
 
     DiskProver(DiskProver&& other) noexcept
     {
-        filename = std::move(other.filename);
+        plot = std::move(other.plot);
         memo = std::move(other.memo);
         id = std::move(other.id);
         k = other.k;
@@ -144,7 +145,6 @@ public:
 
     ~DiskProver()
     {
-        std::lock_guard<std::mutex> l(_mtx);
         for (int i = 0; i < 6; i++) {
             Encoding::ANSFree(kRValues[i]);
         }
@@ -159,8 +159,6 @@ public:
 
     const std::vector<uint64_t>& GetC2() const noexcept { return C2; }
 
-    const std::string& GetFilename() const noexcept { return filename; }
-
     uint8_t GetSize() const noexcept { return k; }
 
     // Given a challenge, returns a quality string, which is sha256(challenge + 2 adjecent x
@@ -170,55 +168,46 @@ public:
     {
         std::vector<LargeBits> qualities;
 
-        std::lock_guard<std::mutex> l(_mtx);
+        // This tells us how many f7 outputs (and therefore proofs) we have for this
+        // challenge. The expected value is one proof.
+        std::vector<uint64_t> p7_entries = GetP7Entries(challenge);
 
-        {
-            std::ifstream disk_file(filename, std::ios::in | std::ios::binary);
+        if (p7_entries.empty()) {
+            return std::vector<LargeBits>();
+        }
 
-            if (!disk_file.is_open()) {
-                throw std::invalid_argument("Invalid file " + filename);
-            }
+        // The last 5 bits of the challenge determine which route we take to get to
+        // our two x values in the leaves.
+        uint8_t last_5_bits = challenge[31] & 0x1f;
 
-            // This tells us how many f7 outputs (and therefore proofs) we have for this
-            // challenge. The expected value is one proof.
-            std::vector<uint64_t> p7_entries = GetP7Entries(disk_file, challenge);
+        for (uint64_t position : p7_entries) {
+            // This inner loop goes from table 6 to table 1, getting the two backpointers,
+            // and following one of them.
+            for (uint8_t table_index = 6; table_index > 1; table_index--) {
+                uint128_t line_point = ReadLinePoint(table_index, position);
 
-            if (p7_entries.empty()) {
-                return std::vector<LargeBits>();
-            }
+                auto xy = Encoding::LinePointToSquare(line_point);
+                assert(xy.first >= xy.second);
 
-            // The last 5 bits of the challenge determine which route we take to get to
-            // our two x values in the leaves.
-            uint8_t last_5_bits = challenge[31] & 0x1f;
-
-            for (uint64_t position : p7_entries) {
-                // This inner loop goes from table 6 to table 1, getting the two backpointers,
-                // and following one of them.
-                for (uint8_t table_index = 6; table_index > 1; table_index--) {
-                    uint128_t line_point = ReadLinePoint(disk_file, table_index, position);
-
-                    auto xy = Encoding::LinePointToSquare(line_point);
-                    assert(xy.first >= xy.second);
-
-                    if (((last_5_bits >> (table_index - 2)) & 1) == 0) {
-                        position = xy.second;
-                    } else {
-                        position = xy.first;
-                    }
+                if (((last_5_bits >> (table_index - 2)) & 1) == 0) {
+                    position = xy.second;
+                } else {
+                    position = xy.first;
                 }
-                uint128_t new_line_point = ReadLinePoint(disk_file, 1, position);
-                auto x1x2 = Encoding::LinePointToSquare(new_line_point);
-
-                // The final two x values (which are stored in the same location) are hashed
-                std::vector<unsigned char> hash_input(32 + Util::ByteAlign(2 * k) / 8, 0);
-                memcpy(hash_input.data(), challenge, 32);
-                (LargeBits(x1x2.second, k) + LargeBits(x1x2.first, k))
-                    .ToBytes(hash_input.data() + 32);
-                std::vector<unsigned char> hash(picosha2::k_digest_size);
-                picosha2::hash256(hash_input.begin(), hash_input.end(), hash.begin(), hash.end());
-                qualities.emplace_back(hash.data(), 32, 256);
             }
-        }  // Scope for disk_file
+            uint128_t new_line_point = ReadLinePoint(1, position);
+            auto x1x2 = Encoding::LinePointToSquare(new_line_point);
+
+            // The final two x values (which are stored in the same location) are hashed
+            std::vector<unsigned char> hash_input(32 + Util::ByteAlign(2 * k) / 8, 0);
+            memcpy(hash_input.data(), challenge, 32);
+            (LargeBits(x1x2.second, k) + LargeBits(x1x2.first, k))
+                .ToBytes(hash_input.data() + 32);
+            std::vector<unsigned char> hash(picosha2::k_digest_size);
+            picosha2::hash256(hash_input.begin(), hash_input.end(), hash.begin(), hash.end());
+            qualities.emplace_back(hash.data(), 32, 256);
+        }
+
         return qualities;
     }
 
@@ -229,102 +218,56 @@ public:
     {
         LargeBits full_proof;
 
-        std::lock_guard<std::mutex> l(_mtx);
-        {
-            std::ifstream disk_file(filename, std::ios::in | std::ios::binary);
+        std::vector<uint64_t> p7_entries = GetP7Entries(challenge);
+        if (p7_entries.empty() || index >= p7_entries.size()) {
+            throw std::logic_error("No proof of space for this challenge");
+        }
 
-            if (!disk_file.is_open()) {
-                throw std::invalid_argument("Invalid file " + filename);
-            }
+        // Gets the 64 leaf x values, concatenated together into a k*64 bit string.
+        std::vector<Bits> xs = GetInputs(p7_entries[index], 6);
 
-            std::vector<uint64_t> p7_entries = GetP7Entries(disk_file, challenge);
-            if (p7_entries.empty() || index >= p7_entries.size()) {
-                throw std::logic_error("No proof of space for this challenge");
-            }
+        // Sorts them according to proof ordering, where
+        // f1(x0) m= f1(x1), f2(x0, x1) m= f2(x2, x3), etc. On disk, they are not stored in
+        // proof ordering, they're stored in plot ordering, due to the sorting in the Compress
+        // phase.
+        std::vector<LargeBits> xs_sorted = ReorderProof(xs);
+        for (const auto& x : xs_sorted) {
+            full_proof += x;
+        }
 
-            // Gets the 64 leaf x values, concatenated together into a k*64 bit string.
-            std::vector<Bits> xs;
-            if (parallel_read) {
-                xs = GetInputs(p7_entries[index], 6);
-            } else {
-                xs = GetInputs(p7_entries[index], 6, &disk_file); // Passing in a disk_file disabled the parallel reads
-            }
-
-            // Sorts them according to proof ordering, where
-            // f1(x0) m= f1(x1), f2(x0, x1) m= f2(x2, x3), etc. On disk, they are not stored in
-            // proof ordering, they're stored in plot ordering, due to the sorting in the Compress
-            // phase.
-            std::vector<LargeBits> xs_sorted = ReorderProof(xs);
-            for (const auto& x : xs_sorted) {
-                full_proof += x;
-            }
-        }  // Scope for disk_file
         return full_proof;
     }
 
 private:
     uint16_t version{VERSION};
-    mutable std::mutex _mtx;
-    std::string filename;
+    const std::vector<uint8_t>* plot;
     std::vector<uint8_t> memo;
     std::vector<uint8_t> id;  // Unique plot id
     uint8_t k;
     std::vector<uint64_t> table_begin_pointers;
     std::vector<uint64_t> C2;
 
-    // Using this method instead of simply seeking will prevent segfaults that would arise when
-    // continuing the process of looking up qualities.
-    static void SafeSeek(std::ifstream& disk_file, uint64_t seek_location) {
-        disk_file.seekg(seek_location);
-
-        if (disk_file.fail()) {
-            std::cout << "goodbit, failbit, badbit, eofbit: "
-                      << (disk_file.rdstate() & std::ifstream::goodbit)
-                      << (disk_file.rdstate() & std::ifstream::failbit)
-                      << (disk_file.rdstate() & std::ifstream::badbit)
-                      << (disk_file.rdstate() & std::ifstream::eofbit)
-                      << std::endl;
-            throw std::runtime_error("badbit or failbit after seeking to " + std::to_string(seek_location));
-        }
-    }
-
-    static void SafeRead(std::ifstream& disk_file, uint8_t* target, uint64_t size) {
-        int64_t pos = disk_file.tellg();
-        disk_file.read(reinterpret_cast<char*>(target), size);
-
-        if (disk_file.fail()) {
-            std::cout << "goodbit, failbit, badbit, eofbit: "
-                      << (disk_file.rdstate() & std::ifstream::goodbit)
-                      << (disk_file.rdstate() & std::ifstream::failbit)
-                      << (disk_file.rdstate() & std::ifstream::badbit)
-                      << (disk_file.rdstate() & std::ifstream::eofbit)
-                      << std::endl;
-            throw std::runtime_error("badbit or failbit after reading size " +
-                    std::to_string(size) + " at position " + std::to_string(pos));
-        }
-    }
-
     // Reads exactly one line point (pair of two k bit back-pointers) from the given table.
     // The entry at index "position" is read. First, the park index is calculated, then
     // the park is read, and finally, entry deltas are added up to the position that we
     // are looking for.
-    uint128_t ReadLinePoint(std::ifstream& disk_file, uint8_t table_index, uint64_t position)
+    uint128_t ReadLinePoint(uint8_t table_index, uint64_t position)
     {
         uint64_t park_index = position / kEntriesPerPark;
         uint32_t park_size_bits = EntrySizes::CalculateParkSize(k, table_index) * 8;
 
-        SafeSeek(disk_file, table_begin_pointers[table_index] + (park_size_bits / 8) * park_index);
+        auto plot_offset = table_begin_pointers[table_index] + (park_size_bits / 8) * park_index;
 
         // This is the checkpoint at the beginning of the park
         uint16_t line_point_size = EntrySizes::CalculateLinePointSize(k);
         auto* line_point_bin = new uint8_t[line_point_size + 7];
-        SafeRead(disk_file, line_point_bin, line_point_size);
+        plot_offset += read_from_vector(this->plot, plot_offset, line_point_bin, line_point_size);
         uint128_t line_point = Util::SliceInt128FromBytes(line_point_bin, 0, k * 2);
 
         // Reads EPP stubs
         uint32_t stubs_size_bits = EntrySizes::CalculateStubsSize(k) * 8;
         auto* stubs_bin = new uint8_t[stubs_size_bits / 8 + 7];
-        SafeRead(disk_file, stubs_bin, stubs_size_bits / 8);
+        plot_offset += read_from_vector(this->plot, plot_offset, stubs_bin, stubs_size_bits / 8);
 
         // Reads EPP deltas
         uint32_t max_deltas_size_bits = EntrySizes::CalculateMaxDeltasSize(k, table_index) * 8;
@@ -332,7 +275,7 @@ private:
 
         // Reads the size of the encoded deltas object
         uint16_t encoded_deltas_size = 0;
-        SafeRead(disk_file, (uint8_t*)&encoded_deltas_size, sizeof(uint16_t));
+        plot_offset += read_from_vector(this->plot, plot_offset, (uint8_t*)&encoded_deltas_size, sizeof(uint16_t));
 
         if (encoded_deltas_size * 8 > max_deltas_size_bits) {
             throw std::invalid_argument("Invalid size for deltas: " + std::to_string(encoded_deltas_size));
@@ -344,10 +287,10 @@ private:
             // Uncompressed
             encoded_deltas_size &= 0x7fff;
             deltas.resize(encoded_deltas_size);
-            SafeRead(disk_file, deltas.data(), encoded_deltas_size);
+            plot_offset += read_from_vector(this->plot, plot_offset, deltas.data(), encoded_deltas_size);
         } else {
             // Compressed
-            SafeRead(disk_file, deltas_bin, encoded_deltas_size);
+            plot_offset += read_from_vector(this->plot, plot_offset, deltas_bin, encoded_deltas_size);
 
             // Decodes the deltas
             double R = kRValues[table_index - 1];
@@ -424,7 +367,7 @@ private:
     }
 
     // Returns P7 table entries (which are positions into table P6), for a given challenge
-    std::vector<uint64_t> GetP7Entries(std::ifstream& disk_file, const uint8_t* challenge)
+    std::vector<uint64_t> GetP7Entries(const uint8_t* challenge)
     {
         if (C2.empty()) {
             return std::vector<uint64_t>();
@@ -462,14 +405,14 @@ private:
         uint32_t c1_entry_size = Util::ByteAlign(k) / 8;
 
         auto* c1_entry_bytes = new uint8_t[c1_entry_size];
-        SafeSeek(disk_file, table_begin_pointers[8] + c1_index * Util::ByteAlign(k) / 8);
+        auto plot_offset = table_begin_pointers[8] + c1_index * Util::ByteAlign(k) / 8;
 
         uint64_t curr_f7 = c2_entry_f;
         uint64_t prev_f7 = c2_entry_f;
         broke = false;
         // Goes through C2 entries until we find the correct C1 checkpoint.
         for (uint64_t start = 0; start < kCheckpoint1Interval; start++) {
-            SafeRead(disk_file, c1_entry_bytes, c1_entry_size);
+            plot_offset += read_from_vector(this->plot, plot_offset, c1_entry_bytes, c1_entry_size);
             Bits c1_entry = Bits(c1_entry_bytes, Util::ByteAlign(k) / 8, Util::ByteAlign(k));
             uint64_t read_f7 = c1_entry.Slice(0, k).GetValue();
 
@@ -510,15 +453,15 @@ private:
         if (double_entry) {
             // In this case, we read the previous park as well as the current one
             c1_index -= 1;
-            SafeSeek(disk_file, table_begin_pointers[8] + c1_index * Util::ByteAlign(k) / 8);
-            SafeRead(disk_file, c1_entry_bytes, Util::ByteAlign(k) / 8);
+            plot_offset = table_begin_pointers[8] + c1_index * Util::ByteAlign(k) / 8;
+            plot_offset += read_from_vector(this->plot, plot_offset, c1_entry_bytes, Util::ByteAlign(k) / 8);
             Bits c1_entry_bits = Bits(c1_entry_bytes, Util::ByteAlign(k) / 8, Util::ByteAlign(k));
             next_f7 = curr_f7;
             curr_f7 = c1_entry_bits.Slice(0, k).GetValue();
 
-            SafeSeek(disk_file, table_begin_pointers[10] + c1_index * c3_entry_size);
+            plot_offset = table_begin_pointers[10] + c1_index * c3_entry_size;
 
-            SafeRead(disk_file, encoded_size_buf, 2);
+            plot_offset += read_from_vector(this->plot, plot_offset, encoded_size_buf, 2);
             encoded_size = Bits(encoded_size_buf, 2, 16).GetValue();
 
             // Avoid telling GetP7Positions and functions it uses that we have more
@@ -527,12 +470,12 @@ private:
                 return std::vector<uint64_t>();
             }
 
-            SafeRead(disk_file, bit_mask, c3_entry_size - 2);
+            plot_offset += read_from_vector(this->plot, plot_offset, bit_mask, c3_entry_size - 2);
 
             p7_positions =
                 GetP7Positions(curr_f7, f7, curr_p7_pos, bit_mask, encoded_size, c1_index);
 
-            SafeRead(disk_file, encoded_size_buf, 2);
+            plot_offset += read_from_vector(this->plot, plot_offset, encoded_size_buf, 2);
             encoded_size = Bits(encoded_size_buf, 2, 16).GetValue();
 
             // Avoid telling GetP7Positions and functions it uses that we have more
@@ -541,7 +484,7 @@ private:
                 return std::vector<uint64_t>();
             }
 
-            SafeRead(disk_file, bit_mask, c3_entry_size - 2);
+            plot_offset += read_from_vector(this->plot, plot_offset, bit_mask, c3_entry_size - 2);
 
             c1_index++;
             curr_p7_pos = c1_index * kCheckpoint1Interval;
@@ -552,8 +495,8 @@ private:
                 p7_positions.end(), second_positions.begin(), second_positions.end());
 
         } else {
-            SafeSeek(disk_file, table_begin_pointers[10] + c1_index * c3_entry_size);
-            SafeRead(disk_file, encoded_size_buf, 2);
+            plot_offset = table_begin_pointers[10] + c1_index * c3_entry_size;
+            plot_offset += read_from_vector(this->plot, plot_offset, encoded_size_buf, 2);
             encoded_size = Bits(encoded_size_buf, 2, 16).GetValue();
 
             // Avoid telling GetP7Positions and functions it uses that we have more
@@ -562,7 +505,7 @@ private:
                 return std::vector<uint64_t>();
             }
 
-            SafeRead(disk_file, bit_mask, c3_entry_size - 2);
+            plot_offset += read_from_vector(this->plot, plot_offset, bit_mask, c3_entry_size - 2);
 
             p7_positions =
                 GetP7Positions(curr_f7, f7, curr_p7_pos, bit_mask, encoded_size, c1_index);
@@ -584,14 +527,14 @@ private:
         // P7.
         auto* p7_park_buf = new uint8_t[p7_park_size_bytes];
         uint64_t park_index = (p7_positions[0] == 0 ? 0 : p7_positions[0]) / kEntriesPerPark;
-        SafeSeek(disk_file, table_begin_pointers[7] + park_index * p7_park_size_bytes);
-        SafeRead(disk_file, p7_park_buf, p7_park_size_bytes);
+        plot_offset = table_begin_pointers[7] + park_index * p7_park_size_bytes;
+        plot_offset += read_from_vector(this->plot, plot_offset, p7_park_buf, p7_park_size_bytes);
         ParkBits p7_park = ParkBits(p7_park_buf, p7_park_size_bytes, p7_park_size_bytes * 8);
         for (uint64_t i = 0; i < p7_positions[p7_positions.size() - 1] - p7_positions[0] + 1; i++) {
             uint64_t new_park_index = (p7_positions[i]) / kEntriesPerPark;
             if (new_park_index > park_index) {
-                SafeSeek(disk_file, table_begin_pointers[7] + new_park_index * p7_park_size_bytes);
-                SafeRead(disk_file, p7_park_buf, p7_park_size_bytes);
+                plot_offset = table_begin_pointers[7] + new_park_index * p7_park_size_bytes;
+                plot_offset += read_from_vector(this->plot, plot_offset, p7_park_buf, p7_park_size_bytes);
                 p7_park = ParkBits(p7_park_buf, p7_park_size_bytes, p7_park_size_bytes * 8);
             }
             uint32_t start_bit_index = (p7_positions[i] % kEntriesPerPark) * (k + 1);
@@ -686,18 +629,9 @@ private:
     // all of the leaves (x values). For example, for depth=5, it fetches the position-th
     // entry in table 5, reading the two back pointers from the line point, and then
     // recursively calling GetInputs for table 4.
-    std::vector<Bits> GetInputs(uint64_t position, uint8_t depth, std::ifstream* disk_file = nullptr)
+    std::vector<Bits> GetInputs(uint64_t position, uint8_t depth)
     {
-        uint128_t line_point;
-
-        if (!disk_file) {
-            // No disk file passed in, so we assume here we are doing parallel reads
-            // Create individual file handles to allow parallel processing
-            std::ifstream disk_file_parallel(filename, std::ios::in | std::ios::binary);
-            line_point = ReadLinePoint(disk_file_parallel, depth, position);
-        } else {
-            line_point = ReadLinePoint(*disk_file, depth, position);
-        }
+        auto line_point = ReadLinePoint(depth, position);
         std::pair<uint64_t, uint64_t> xy = Encoding::LinePointToSquare(line_point);
 
         if (depth == 1) {
@@ -707,17 +641,8 @@ private:
             ret.emplace_back(xy.first, k);   // x
             return ret;
         } else {
-            std::vector<Bits> left, right;
-            if (!disk_file) {
-                // no disk_file, so we do parallel reads here
-                auto left_fut=std::async(std::launch::async, &DiskProver::GetInputs,this, (uint64_t)xy.second, (uint8_t)(depth - 1), nullptr);
-                auto right_fut=std::async(std::launch::async, &DiskProver::GetInputs,this, (uint64_t)xy.first, (uint8_t)(depth - 1), nullptr);
-                left = left_fut.get();  // y
-                right = right_fut.get();  // x
-            } else {
-                left = GetInputs(xy.second, depth - 1, disk_file);  // y
-                right = GetInputs(xy.first, depth - 1, disk_file);  // x
-            }
+            auto left = GetInputs(xy.second, depth - 1);  // y
+            auto right = GetInputs(xy.first, depth - 1);  // x
             left.insert(left.end(), right.begin(), right.end());
             return left;
         }

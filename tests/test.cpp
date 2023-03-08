@@ -488,13 +488,13 @@ void HexToBytes(const string& hex, uint8_t* result)
 }
 
 void TestProofOfSpace(
-    std::string filename,
+    const std::vector<uint8_t>& plot,
     uint32_t iterations,
     uint8_t k,
     uint8_t* plot_id,
     uint32_t num_proofs)
 {
-    DiskProver prover(filename);
+    DiskProver prover(plot);
     uint8_t* proof_data = new uint8_t[8 * k];
     uint32_t success = 0;
     // Tries an edge case challenge with many 1s in the front, and ensures there is no segfault
@@ -534,7 +534,6 @@ void TestProofOfSpace(
 }
 
 void PlotAndTestProofOfSpace(
-    std::string filename,
     uint32_t iterations,
     uint8_t k,
     uint8_t* plot_id,
@@ -545,74 +544,35 @@ void PlotAndTestProofOfSpace(
 {
     DiskPlotter plotter = DiskPlotter();
     uint8_t memo[5] = {1, 2, 3, 4, 5};
-    plotter.CreatePlotDisk(
-        ".", filename, k, memo, 5, plot_id, 32, buffer, 0, stripe_size, num_threads);
-    TestProofOfSpace(filename, iterations, k, plot_id, num_proofs);
-    REQUIRE(remove(filename.c_str()) == 0);
+    auto plot = plotter.CreatePlotDisk(
+        k, memo, 5, plot_id, 32, buffer, 0, stripe_size, num_threads);
+    TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
 }
 
 TEST_CASE("Plotting")
 {
     SECTION("Disk plot k18")
     {
-        PlotAndTestProofOfSpace("cpp-test-plot.dat", 100, 18, plot_id_1, 11, 95, 4000, 2);
+        PlotAndTestProofOfSpace(100, 18, plot_id_1, 11, 95, 4000, 2);
     }
     SECTION("Disk plot k19")
     {
-        PlotAndTestProofOfSpace("cpp-test-plot.dat", 100, 19, plot_id_1, 100, 71, 8192, 2);
+        PlotAndTestProofOfSpace(100, 19, plot_id_1, 100, 71, 8192, 2);
     }
     SECTION("Disk plot k19 single-thread")
     {
-        PlotAndTestProofOfSpace("cpp-test-plot.dat", 100, 19, plot_id_1, 100, 71, 8192, 1);
+        PlotAndTestProofOfSpace(100, 19, plot_id_1, 100, 71, 8192, 1);
     }
     SECTION("Disk plot k20")
     {
-        PlotAndTestProofOfSpace("cpp-test-plot.dat", 500, 20, plot_id_3, 100, 469, 16000, 2);
+        PlotAndTestProofOfSpace(500, 20, plot_id_3, 100, 469, 16000, 2);
     }
     SECTION("Disk plot k21")
     {
-        PlotAndTestProofOfSpace("cpp-test-plot.dat", 5000, 21, plot_id_3, 100, 4945, 8192, 4);
+        PlotAndTestProofOfSpace(5000, 21, plot_id_3, 100, 4945, 8192, 4);
     }
-    // SECTION("Disk plot k24") { PlotAndTestProofOfSpace("cpp-test-plot.dat", 100, 24, plot_id_3,
+    // SECTION("Disk plot k24") { PlotAndTestProofOfSpace(100, 24, plot_id_3,
     // 100, 107); }
-}
-
-TEST_CASE("Invalid plot")
-{
-    SECTION("File gets deleted")
-    {
-        string filename = "invalid-plot.dat";
-        {
-            DiskPlotter plotter = DiskPlotter();
-            uint8_t memo[5] = {1, 2, 3, 4, 5};
-            uint8_t k = 20;
-            plotter.CreatePlotDisk(".", filename, k, memo, 5, plot_id_1, 32, 200, 32, 8192, 2);
-            DiskProver prover(filename);
-            uint8_t* proof_data = new uint8_t[8 * k];
-            uint8_t challenge[32];
-            size_t i;
-            memset(challenge, 155, 32);
-            vector<LargeBits> qualities;
-            for (i = 0; i < 50; i++) {
-                qualities = prover.GetQualitiesForChallenge(challenge);
-                if (qualities.size())
-                    break;
-                challenge[0]++;
-            }
-            Verifier verifier = Verifier();
-            REQUIRE(qualities.size() > 0);
-            for (uint32_t index = 0; index < qualities.size(); index++) {
-                LargeBits proof = prover.GetFullProof(challenge, index);
-                proof.ToBytes(proof_data);
-                LargeBits quality =
-                    verifier.ValidateProof(plot_id_1, k, challenge, proof_data, k * 8);
-                REQUIRE(quality == qualities[index]);
-            }
-            delete[] proof_data;
-        }
-        REQUIRE(remove(filename.c_str()) == 0);
-        REQUIRE_THROWS_WITH([&]() { DiskProver p(filename); }(), "Invalid file " + filename);
-    }
 }
 
 TEST_CASE("Sort on disk")
@@ -861,26 +821,22 @@ TEST_CASE("DiskProver")
 {
     SECTION("Move constructor")
     {
-        std::string filename = "prover_test.plot";
         DiskPlotter plotter = DiskPlotter();
         std::vector<uint8_t> memo{1, 2, 3};
-        plotter.CreatePlotDisk(
-            ".", filename, 18, memo.data(),
+        auto plot = plotter.CreatePlotDisk(
+            18, memo.data(),
             memo.size(), plot_id_1, 32, 11, 0,
             4000, 2);
-        DiskProver prover1(filename);
-        auto* p1_filename_ptr = prover1.GetFilename().data();
+        DiskProver prover1(plot);
         auto* p1_memo_ptr = prover1.GetMemo().data();
         auto* p1_id_ptr = prover1.GetId().data();
         auto* p1_table_begin_pointers_ptr = prover1.GetTableBeginPointers().data();
         auto* p1_C2_ptr = prover1.GetC2().data();
         DiskProver prover2(std::move(prover1));
-        REQUIRE(prover2.GetFilename().data() == p1_filename_ptr);
         REQUIRE(prover2.GetMemo().data() == p1_memo_ptr);
         REQUIRE(prover2.GetId().data() == p1_id_ptr);
         REQUIRE(prover2.GetTableBeginPointers().data() == p1_table_begin_pointers_ptr);
         REQUIRE(prover2.GetC2().data() == p1_C2_ptr);
-        REQUIRE(prover1.GetFilename().empty());
         REQUIRE(prover1.GetMemo().empty());
         REQUIRE(prover1.GetId().empty());
         REQUIRE(prover1.GetSize() == prover1.GetSize());
