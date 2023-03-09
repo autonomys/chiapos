@@ -42,13 +42,13 @@
 #include "sort_manager.hpp"
 #include "util.hpp"
 
-class DiskPlotter {
+class Plotter {
 public:
     // This method creates a plot on disk with the filename. Many temporary files
     // (filename + ".table1.tmp", filename + ".p2.t3.sort_bucket_4.tmp", etc.) are created
     // and their total size will be larger than the final plot file. Temp files are deleted at the
     // end of the process.
-    std::vector<uint8_t>* CreatePlotDisk(
+    std::vector<uint8_t>* CreatePlot(
         uint8_t k,
         const uint8_t* id,
         uint32_t id_len,

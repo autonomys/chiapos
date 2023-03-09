@@ -16,14 +16,13 @@
 
 #include <stdio.h>
 
-#include <set>
-
 #include <catch2/catch.hpp>
+#include <set>
 
 #include "../lib/include/picosha2.hpp"
 #include "calculate_bucket.hpp"
-#include "plotter_disk.hpp"
-#include "prover_disk.hpp"
+#include "plotter.hpp"
+#include "prover.hpp"
 #include "sort_manager.hpp"
 #include "verifier.hpp"
 
@@ -496,7 +495,7 @@ void TestProofOfSpace(
     uint8_t* plot_id,
     uint32_t num_proofs)
 {
-    DiskProver prover(plot);
+    Prover prover(plot);
     auto* proof_data = new uint8_t[8 * k];
     uint32_t success = 0;
     // Tries an edge case challenge with many 1s in the front, and ensures there is no segfault
@@ -543,8 +542,8 @@ void PlotAndTestProofOfSpace(
     uint32_t num_proofs,
     uint32_t stripe_size)
 {
-    DiskPlotter plotter = DiskPlotter();
-    auto* plot = plotter.CreatePlotDisk(k, plot_id, 32, buffer, 0, stripe_size);
+    Plotter plotter = Plotter();
+    auto* plot = plotter.CreatePlot(k, plot_id, 32, buffer, 0, stripe_size);
     TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
     delete plot;
 }
@@ -821,13 +820,13 @@ TEST_CASE("DiskProver")
 {
     SECTION("Move constructor")
     {
-        DiskPlotter plotter = DiskPlotter();
-        auto plot = plotter.CreatePlotDisk(18, plot_id_1, 32, 11, 0, 4000);
-        DiskProver prover1(plot);
+        Plotter plotter = Plotter();
+        auto plot = plotter.CreatePlot(18, plot_id_1, 32, 11, 0, 4000);
+        Prover prover1(plot);
         auto* p1_id_ptr = prover1.GetId().data();
         auto* p1_table_begin_pointers_ptr = prover1.GetTableBeginPointers().data();
         auto* p1_C2_ptr = prover1.GetC2().data();
-        DiskProver prover2(std::move(prover1));
+        Prover prover2(std::move(prover1));
         REQUIRE(prover2.GetId().data() == p1_id_ptr);
         REQUIRE(prover2.GetTableBeginPointers().data() == p1_table_begin_pointers_ptr);
         REQUIRE(prover2.GetC2().data() == p1_C2_ptr);

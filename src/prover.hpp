@@ -52,12 +52,12 @@ uint32_t read_from_vector(const std::vector<uint8_t>* vector, uint32_t position,
 
 // The DiskProver, given a correctly formatted plot file, can efficiently generate valid proofs
 // of space, for a given challenge.
-class DiskProver {
+class Prover {
 public:
     static const uint16_t VERSION{1};
     // The constructor opens the file, and reads the contents of the file header. The table pointers
     // will be used to find and seek to all seven tables, at the time of proving.
-    explicit DiskProver(const std::vector<uint8_t>* plot) : id(kIdLen)
+    explicit Prover(const std::vector<uint8_t>* plot) : id(kIdLen)
     {
         struct plot_header header{};
         this->plot = plot;
@@ -123,9 +123,9 @@ public:
         delete[] c2_buf;
     }
 
-    DiskProver(DiskProver const&) = delete;
+    Prover(Prover const&) = delete;
 
-    DiskProver(DiskProver&& other) noexcept
+    Prover(Prover&& other) noexcept
     {
         plot = std::move(other.plot);
         id = std::move(other.id);
@@ -135,7 +135,7 @@ public:
         version = std::move(other.version);
     }
 
-    ~DiskProver()
+    ~Prover()
     {
         for (int i = 0; i < 6; i++) {
             Encoding::ANSFree(kRValues[i]);
