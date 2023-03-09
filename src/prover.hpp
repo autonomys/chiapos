@@ -154,7 +154,7 @@ public:
     // Given a challenge, returns a quality string, which is sha256(challenge + 2 adjecent x
     // values), from the 64 value proof. Note that this is more efficient than fetching all 64 x
     // values, which are in different parts of the disk.
-    std::vector<LargeBits> GetQualitiesForChallenge(const uint8_t* challenge)
+    std::vector<LargeBits> GetQualitiesForChallenge(const uint8_t* challenge) const
     {
         std::vector<LargeBits> qualities;
 
@@ -204,7 +204,7 @@ public:
     // Given a challenge, and an index, returns a proof of space. This assumes GetQualities was
     // called, and there are actually proofs present. The index represents which proof to fetch,
     // if there are multiple.
-    LargeBits GetFullProof(const uint8_t* challenge, uint32_t index, bool parallel_read = true)
+    LargeBits GetFullProof(const uint8_t* challenge, uint32_t index) const
     {
         LargeBits full_proof;
 
@@ -240,7 +240,7 @@ private:
     // The entry at index "position" is read. First, the park index is calculated, then
     // the park is read, and finally, entry deltas are added up to the position that we
     // are looking for.
-    uint128_t ReadLinePoint(uint8_t table_index, uint64_t position)
+    uint128_t ReadLinePoint(uint8_t table_index, uint64_t position) const
     {
         uint64_t park_index = position / kEntriesPerPark;
         uint32_t park_size_bits = EntrySizes::CalculateParkSize(k, table_index) * 8;
@@ -356,7 +356,7 @@ private:
     }
 
     // Returns P7 table entries (which are positions into table P6), for a given challenge
-    std::vector<uint64_t> GetP7Entries(const uint8_t* challenge)
+    std::vector<uint64_t> GetP7Entries(const uint8_t* challenge) const
     {
         if (C2.empty()) {
             return std::vector<uint64_t>();
@@ -618,7 +618,7 @@ private:
     // all of the leaves (x values). For example, for depth=5, it fetches the position-th
     // entry in table 5, reading the two back pointers from the line point, and then
     // recursively calling GetInputs for table 4.
-    std::vector<Bits> GetInputs(uint64_t position, uint8_t depth)
+    std::vector<Bits> GetInputs(uint64_t position, uint8_t depth) const
     {
         auto line_point = ReadLinePoint(depth, position);
         std::pair<uint64_t, uint64_t> xy = Encoding::LinePointToSquare(line_point);

@@ -57,16 +57,16 @@ public:
 
     // Validates a proof of space, and returns the quality string if the proof is valid for the
     // given k and challenge. If the proof is invalid, it returns an empty LargeBits().
-    LargeBits ValidateProof(
-        const uint8_t* id,
+    static LargeBits ValidateProof(
         uint8_t k,
+        const uint8_t* id,
         const uint8_t* challenge,
         const uint8_t* proof_bytes,
         uint16_t proof_size)
     {
         LargeBits proof_bits = LargeBits(proof_bytes, proof_size, proof_size * 8);
         if (k * 64 != proof_bits.GetSize()) {
-            return LargeBits();
+            return {};
         }
         std::vector<Bits> proof;
         std::vector<Bits> ys;
@@ -99,10 +99,10 @@ public:
                 // If there is no match, fails.
                 uint64_t cdiff = r_plot_entry.y / kBC - l_plot_entry.y / kBC;
                 if (cdiff != 1) {
-                    return LargeBits();
+                    return {};
                 } else {
                     if(f.FindMatches(bucket_L, bucket_R, nullptr, nullptr) != 1) {
-                        return LargeBits();
+                        return {};
                     }
                 }
 
@@ -113,7 +113,7 @@ public:
             }
             for (auto & new_y : new_ys) {
                 if (new_y.GetSize() <= 0) {
-                    return LargeBits();
+                    return {};
                 }
             }
 
@@ -129,7 +129,7 @@ public:
             // Returns quality string, which requires changing proof to plot ordering
             return GetQualityString(k, proof_bits, quality_index, challenge);
         } else {
-            return LargeBits();
+            return {};
         }
     }
 

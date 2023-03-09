@@ -44,14 +44,10 @@
 
 class Plotter {
 public:
-    // This method creates a plot on disk with the filename. Many temporary files
-    // (filename + ".table1.tmp", filename + ".p2.t3.sort_bucket_4.tmp", etc.) are created
-    // and their total size will be larger than the final plot file. Temp files are deleted at the
-    // end of the process.
+    // This method creates a plot, ID is supposed to be 32 bytes
     std::vector<uint8_t>* CreatePlot(
         uint8_t k,
         const uint8_t* id,
-        uint32_t id_len,
         uint32_t buf_megabytes_input = 0,
         uint32_t num_buckets_input = 0,
         uint64_t stripe_size_input = 0,
@@ -128,7 +124,7 @@ public:
 
 #ifdef _PRINT_LOGS
         std::cout << std::endl << "Starting plotting progress" << std::endl;
-        std::cout << "ID: " << Util::HexStr(id, id_len) << std::endl;
+        std::cout << "ID: " << Util::HexStr(id, kIdLen) << std::endl;
         std::cout << "Plot size is: " << static_cast<int>(k) << std::endl;
         std::cout << "Buffer size is: " << buf_megabytes << "MiB" << std::endl;
         std::cout << "Using " << num_buckets << " buckets" << std::endl;
@@ -151,8 +147,6 @@ public:
             // for (auto const& vec : tmp_1_vectors) {
             //     vec.reserve(?);
             // }
-
-            assert(id_len == kIdLen);
 
 #ifdef _PRINT_LOGS
             std::cout << std::endl
@@ -256,7 +250,7 @@ public:
 
 private:
     // Writes the plot file header to a file
-    uint32_t WriteHeader(
+    static uint32_t WriteHeader(
         std::vector<uint8_t>* plot_vector,
         uint8_t k,
         const uint8_t* id)

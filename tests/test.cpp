@@ -508,13 +508,12 @@ void TestProofOfSpace(
         vector<unsigned char> hash(picosha2::k_digest_size);
         picosha2::hash256(hash_input.begin(), hash_input.end(), hash.begin(), hash.end());
         vector<LargeBits> qualities = prover.GetQualitiesForChallenge(hash.data());
-        Verifier verifier = Verifier();
 
         for (uint32_t index = 0; index < qualities.size(); index++) {
             LargeBits proof = prover.GetFullProof(hash.data(), index);
             proof.ToBytes(proof_data);
 
-            LargeBits quality = verifier.ValidateProof(plot_id, k, hash.data(), proof_data, k * 8);
+            LargeBits quality = Verifier::ValidateProof(k, plot_id, hash.data(), proof_data, k * 8);
             REQUIRE(quality.GetSize() == 256);
             REQUIRE(quality == qualities[index]);
             success += 1;
@@ -522,7 +521,7 @@ void TestProofOfSpace(
             // Tests invalid proof
             proof_data[0] = (proof_data[0] + 1) % 256;
             LargeBits quality_2 =
-                verifier.ValidateProof(plot_id, k, hash.data(), proof_data, k * 8);
+                Verifier::ValidateProof(k, plot_id, hash.data(), proof_data, k * 8);
             REQUIRE(quality_2.GetSize() == 0);
         }
     }
@@ -543,7 +542,7 @@ void PlotAndTestProofOfSpace(
     uint32_t stripe_size)
 {
     Plotter plotter = Plotter();
-    auto* plot = plotter.CreatePlot(k, plot_id, 32, buffer, 0, stripe_size);
+    auto* plot = plotter.CreatePlot(k, plot_id, buffer, 0, stripe_size);
     TestProofOfSpace(plot, iterations, k, plot_id, num_proofs);
     delete plot;
 }
@@ -821,7 +820,7 @@ TEST_CASE("DiskProver")
     SECTION("Move constructor")
     {
         Plotter plotter = Plotter();
-        auto plot = plotter.CreatePlot(18, plot_id_1, 32, 11, 0, 4000);
+        auto plot = plotter.CreatePlot(18, plot_id_1, 11, 0, 4000);
         Prover prover1(plot);
         auto* p1_id_ptr = prover1.GetId().data();
         auto* p1_table_begin_pointers_ptr = prover1.GetTableBeginPointers().data();

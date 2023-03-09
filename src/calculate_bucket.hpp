@@ -86,7 +86,7 @@ public:
         memcpy(enc_key + 1, orig_key, 31);
 
         // Setup ChaCha8 context with zero-filled IV
-        chacha8_keysetup(&this->enc_ctx_, enc_key, 256, NULL);
+        chacha8_keysetup(&this->enc_ctx_, enc_key, 256, nullptr);
     }
 
     inline ~F1Calculator()
