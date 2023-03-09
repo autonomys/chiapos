@@ -249,6 +249,36 @@ namespace Util {
         return tmp;
     }
 
+    // 'bytes' points to a big-endian 64 bit value (possibly truncated, if
+    // (start_bit % 8 + num_bits > 64)). Returns the integer that starts at
+    // 'start_bit' that is 'num_bits' long (as a native-endian integer).
+    //
+    // Note: requires that 8 bytes after the first sliced byte are addressable
+    // (regardless of 'num_bits'). In practice it can be ensured by allocating
+    // extra 7 bytes to all memory buffers passed to this function.
+    inline uint64_t PaddedSliceInt64FromBytes(
+        const uint8_t *bytes,
+        uint32_t start_bit,
+        const uint32_t num_bits,
+        uint32_t len_bytes)
+    {
+        uint64_t tmp;
+
+        if (start_bit + num_bits > 64) {
+            bytes += start_bit / 8;
+            start_bit %= 8;
+        }
+
+        // Hack: Padding here is to fix undefined behavior where code down from here was reading
+        // more bytes than `bytes` had allocated (8 vs 5)
+        uint8_t padded_bytes[8];
+        std::memcpy(padded_bytes, bytes, std::min(len_bytes, (uint32_t)8));
+        tmp = Util::EightBytesToInt(padded_bytes);
+        tmp <<= start_bit;
+        tmp >>= 64 - num_bits;
+        return tmp;
+    }
+
     inline uint64_t SliceInt64FromBytesFull(
         const uint8_t *bytes,
         uint32_t start_bit,
@@ -294,7 +324,7 @@ namespace Util {
         if ((begin_bits + take_bits) / 8 > len_bytes - 1) {
             take_bits = len_bytes * 8 - begin_bits;
         }
-        return Util::SliceInt64FromBytes(bytes, begin_bits, take_bits);
+        return Util::PaddedSliceInt64FromBytes(bytes, begin_bits, take_bits, len_bytes);
     }
 
     // The number of memory entries required to do the custom SortInMemory algorithm, given the
