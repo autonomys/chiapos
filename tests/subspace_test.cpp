@@ -20,6 +20,7 @@
 
 #include "plotter.hpp"
 #include "prover.hpp"
+#include "subspace.hpp"
 #include "verifier.hpp"
 
 using namespace std;
@@ -108,9 +109,49 @@ void PlotAndTestProofOfSpace(
     delete plot;
 }
 
-TEST_CASE("Plotting")
-{
-    PlotAndTestProofOfSpace(100, 17, plot_id_1, 11, 93, 2000);
+void PlotAndTestProofOfSpaceFfi() {
+    static const uint8_t K = 17;
+    auto seed { plot_id_1 };
+
+    auto* table = subspace_chiapos_create_table(K, seed);
+    auto* prover = subspace_chiapos_create_prover(table);
+    uint8_t empty_quality[32] = {0};
+    uint8_t empty_proof[K * 8] = {0};
+
+    {
+        uint32_t challenge_index = {0};
+        uint8_t quality[32] = {0};
+        REQUIRE_FALSE(subspace_chiapos_find_quality(prover, challenge_index, quality));
+        REQUIRE(std::equal(std::begin(quality), std::end(quality), std::begin(empty_quality)));
+
+        uint8_t proof[K * 8] = {0};
+        REQUIRE_FALSE(subspace_chiapos_create_proof(prover, challenge_index, proof));
+        REQUIRE(std::equal(std::begin(proof), std::end(proof), std::begin(empty_proof)));
+    }
+
+    {
+        uint32_t challenge_index = {1};
+        uint8_t quality[32] = {0};
+        REQUIRE(subspace_chiapos_find_quality(prover, challenge_index, quality));
+        REQUIRE_FALSE(std::equal(std::begin(quality), std::end(quality), std::begin(empty_quality)));
+
+        uint8_t proof[K * 8] = {0};
+        REQUIRE(subspace_chiapos_create_proof(prover, challenge_index, proof));
+        REQUIRE_FALSE(std::equal(std::begin(proof), std::end(proof), std::begin(empty_proof)));
+
+        REQUIRE(subspace_chiapos_is_proof_valid(K, seed, challenge_index, proof));
+    }
+
+    subspace_chiapos_free_prover(prover);
+    subspace_chiapos_free_table(table);
 }
 
+TEST_CASE("Plotting")
+{
+    PlotAndTestProofOfSpace(100, 17, plot_id_1, 11, 93, 4000);
+}
 
+TEST_CASE("FFI")
+{
+    PlotAndTestProofOfSpaceFfi();
+}
