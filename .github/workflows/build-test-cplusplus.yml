@@ -46,20 +46,21 @@ jobs:
           swapon -s
           ./RunTests
 
-  tsan:
-    name: TSAN ubuntu
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: cmake, RunTests with thread sanitizer on Ubuntu
-        run: |
-          mkdir build-tsan
-          cd build-tsan
-          cmake -DCMAKE_BUILD_TYPE=TSAN ../
-          cmake --build . -- -j 6
-          TSAN_OPTIONS="memory_limit_mb=6000" ./RunTests
+# Single-threaded, hence irrelevant now
+#  tsan:
+#    name: TSAN ubuntu
+#    runs-on: ubuntu-20.04
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v3
+#
+#      - name: cmake, RunTests with thread sanitizer on Ubuntu
+#        run: |
+#          mkdir build-tsan
+#          cd build-tsan
+#          cmake -DCMAKE_BUILD_TYPE=TSAN ../
+#          cmake --build . -- -j 6
+#          TSAN_OPTIONS="memory_limit_mb=6000" ./RunTests
 
   windows:
     name: Windows Latest
