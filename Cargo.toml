@@ -1,0 +1,18 @@
+[package]
+name = "subspace-chiapos"
+description = "Chia Proof of Space adapted for Subspace needs"
+license = "Apache-2.0"
+version = "0.1.0"
+authors = ["Nazar Mokrynskyi <nazar@mokrynskyi.com>"]
+edition = "2021"
+include = [
+    "/lib",
+    "/src",
+    "/uint128_t",
+    "/build.rs",
+    "/Cargo.toml",
+    "/LICENSE",
+]
+
+[build-dependencies]
+cc = "1.0.79"
