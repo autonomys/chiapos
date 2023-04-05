@@ -621,7 +621,7 @@ void TestProofOfSpace(
         picosha2::hash256(hash_input.begin(), hash_input.end(), hash.begin(), hash.end());
         vector<LargeBits> qualities = prover.GetQualitiesForChallenge(hash.data());
         Verifier verifier = Verifier();
-            
+
         for (uint32_t index = 0; index < qualities.size(); index++) {
             LargeBits proof = prover.GetFullProof(hash.data(), index);
             proof.ToBytes(proof_data);
@@ -1169,6 +1169,38 @@ TEST_CASE("FilteredDisk")
     }
 */
     remove("test_file.bin");
+}
+
+void TestInvalidSizeForDeltas()
+{
+    auto filename = "cpp-test-plot.dat";
+    uint8_t plot_id[] = {251, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+    DiskPlotter().CreatePlotDisk(
+        ".",
+        ".",
+        ".",
+        filename,
+        17,
+        {},
+        0,
+        plot_id,
+        32,
+        11,
+        0,
+        2000,
+        1
+    );
+
+    DiskProver prover(filename);
+
+    uint8_t challenge[32] = {40, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    prover.GetQualitiesForChallenge(challenge);
+}
+
+TEST_CASE("TestInvalidSizeForDeltas")
+{
+    TestInvalidSizeForDeltas();
 }
 
 int main(int argc, char* argv[])
