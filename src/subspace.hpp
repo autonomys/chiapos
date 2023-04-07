@@ -27,15 +27,19 @@ extern "C" void subspace_chiapos_free_prover(Prover* prover) {
 extern "C" bool subspace_chiapos_find_quality(const Prover* prover, uint32_t challenge_index, uint8_t* quality) {
     uint8_t challenge[32] = {0};
     std::memcpy(challenge, &challenge_index, sizeof challenge_index);
-    // TODO: Potentially optimize `GetQualitiesForChallenge` to check for existing of the first
-    //  quality rather than scanning for all of them
-    auto qualities = prover->GetQualitiesForChallenge(challenge);
-    if (!qualities.empty()) {
-        qualities.front().ToBytes(quality);
-        return true;
-    }
+    try {
+        // TODO: Potentially optimize `GetQualitiesForChallenge` to check for existing of the first
+        //  quality rather than scanning for all of them
+        auto qualities = prover->GetQualitiesForChallenge(challenge);
+        if (!qualities.empty()) {
+            qualities.front().ToBytes(quality);
+            return true;
+        }
 
-    return false;
+        return false;
+    } catch (...) {
+        return false;
+    }
 }
 
 // Prover is the same as created by `create_prover` above.
@@ -61,7 +65,11 @@ extern "C" bool subspace_chiapos_is_proof_valid(
 ) {
     uint8_t challenge[32] = {0};
     std::memcpy(challenge, &challenge_index, sizeof challenge_index);
-    auto quality = Verifier::ValidateProof(k,seed, challenge, proof, k * 8);
+    try {
+        auto quality = Verifier::ValidateProof(k,seed, challenge, proof, k * 8);
 
-    return quality.GetSize() != 0;
+        return quality.GetSize() != 0;
+    } catch (...) {
+        return false;
+    }
 }
