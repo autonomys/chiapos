@@ -16,7 +16,8 @@ fn main() {
         cc.warnings(false).files(&[
             "lib/FiniteStateEntropy/lib/fse_compress.c",
             "lib/FiniteStateEntropy/lib/fse_decompress.c",
-            "lib/FiniteStateEntropy/lib/entropy_common.c",
+            // Provided by linked `zstd-sys` dependency
+            // "lib/FiniteStateEntropy/lib/entropy_common.c",
             "lib/FiniteStateEntropy/lib/hist.c",
             "src/chacha8.c",
         ]);

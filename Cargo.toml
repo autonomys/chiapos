@@ -14,5 +14,9 @@ include = [
     "/LICENSE",
 ]
 
+[dependencies]
+# Brings in FSE's `entropy_common.c`, which otherwise would cause linking issues
+zstd-sys = "2"
+
 [build-dependencies]
 cc = "1.0.79"

@@ -1,6 +1,10 @@
 //! Chia Proof of Space adapted for Subspace needs
 #![warn(rust_2018_idioms, missing_debug_implementations, missing_docs)]
 
+// Brings in FSE's `entropy_common.c`, which otherwise would cause linking issues
+#[allow(unused_imports)]
+use zstd_sys::*;
+
 const K: u8 = 17;
 
 /// Abstraction that represents quality of the solution in the table
