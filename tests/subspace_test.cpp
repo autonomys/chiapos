@@ -139,7 +139,10 @@ void PlotAndTestProofOfSpaceFfi() {
         REQUIRE(subspace_chiapos_create_proof(prover, challenge_index, proof));
         REQUIRE_FALSE(std::equal(std::begin(proof), std::end(proof), std::begin(empty_proof)));
 
-        REQUIRE(subspace_chiapos_is_proof_valid(K, seed, challenge_index, proof));
+        {
+            uint8_t recovered_quality[32] = {0};
+            REQUIRE(subspace_chiapos_is_proof_valid(K, seed, challenge_index, proof, recovered_quality));
+        }
     }
 
     subspace_chiapos_free_prover(prover);

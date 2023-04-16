@@ -84,12 +84,25 @@ impl Table {
     }
 }
 
-/// Check whether proof created earlier is valid
-pub fn is_proof_valid(seed: &[u8; 32], challenge_index: u32, proof: &[u8; K as usize * 8]) -> bool {
-    // SAFETY: Called with valid pointer to seed and proof with correct size
-    unsafe {
-        ffi::subspace_chiapos_is_proof_valid(K, seed.as_ptr(), challenge_index, proof.as_ptr())
-    }
+/// Check whether proof created earlier is valid and return quality bytes if yes
+pub fn is_proof_valid(
+    seed: &[u8; 32],
+    challenge_index: u32,
+    proof: &[u8; K as usize * 8],
+) -> Option<[u8; 32]> {
+    let mut bytes = [0u8; 32];
+    // SAFETY: Called with valid pointer to seed, proof and quality with correct size
+    let success = unsafe {
+        ffi::subspace_chiapos_is_proof_valid(
+            K,
+            seed.as_ptr(),
+            challenge_index,
+            proof.as_ptr(),
+            bytes.as_mut_ptr(),
+        )
+    };
+
+    success.then_some(bytes)
 }
 
 mod ffi {
@@ -143,6 +156,7 @@ mod ffi {
             seed: *const u8,
             challenge_index: u32,
             proof: *const u8,
+            quality: *mut u8,
         ) -> bool;
     }
 }
@@ -166,7 +180,8 @@ mod tests {
             let challenge_index = 1;
             let quality = table.find_quality(challenge_index).unwrap();
             let proof = quality.create_proof();
-            assert!(is_proof_valid(&SEED, challenge_index, &proof));
+            let maybe_quality = is_proof_valid(&SEED, challenge_index, &proof);
+            assert_eq!(maybe_quality, Some(quality.to_bytes()));
         }
     }
 }

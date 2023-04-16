@@ -61,14 +61,20 @@ extern "C" bool subspace_chiapos_is_proof_valid(
     uint8_t k,
     const uint8_t* seed,
     uint32_t challenge_index,
-    const uint8_t* proof
+    const uint8_t* proof,
+    uint8_t* quality
 ) {
     uint8_t challenge[32] = {0};
     std::memcpy(challenge, &challenge_index, sizeof challenge_index);
     try {
-        auto quality = Verifier::ValidateProof(k,seed, challenge, proof, k * 8);
+        auto found_quality = Verifier::ValidateProof(k,seed, challenge, proof, k * 8);
 
-        return quality.GetSize() != 0;
+        if (found_quality.GetSize() != 0) {
+            found_quality.ToBytes(quality);
+            return true;
+        } else {
+            return false;
+        }
     } catch (...) {
         return false;
     }
