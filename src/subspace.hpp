@@ -70,11 +70,18 @@ extern "C" bool subspace_chiapos_is_proof_valid(
         auto found_quality = Verifier::ValidateProof(k,seed, challenge, proof, k * 8);
 
         if (found_quality.GetSize() != 0) {
-            found_quality.ToBytes(quality);
-            return true;
-        } else {
-            return false;
+            // This is already done internally in `Verifier::ValidateProof` above, but in order to
+            // not change its public API we're doing it again here
+            Bits challenge_bits = Bits(challenge, 256 / 8, 256);
+            uint16_t quality_index = challenge_bits.Slice(256 - 5).GetValue() << 1;
+
+            if (quality_index == 0) {
+                found_quality.ToBytes(quality);
+                return true;
+            }
         }
+
+        return false;
     } catch (...) {
         return false;
     }
